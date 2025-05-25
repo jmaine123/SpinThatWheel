@@ -1,0 +1,676 @@
+import pygame
+import random
+import time
+import os
+import math
+
+# Initialize Pygame
+pygame.init()
+pygame.mixer.init()
+
+# --- Constants ---
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+BLUE = (0, 0, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+YELLOW = (255, 255, 0)
+GRAY = (128, 128, 128)
+LIGHT_GRAY = (200, 200, 200)
+PURPLE = (128, 0, 128)
+DARK_PURPLE = (85, 26, 139)
+
+# Screen dimensions
+SCREEN_WIDTH = 1500
+SCREEN_HEIGHT = 1000
+SCREEN_SIZE = (SCREEN_WIDTH, SCREEN_HEIGHT)
+
+GAME_DISPLAY_WIDTH = 800
+GAME_DISPLAY_HEIGHT = 600
+GAME_DISPLAY_SIZE = (GAME_DISPLAY_WIDTH, GAME_DISPLAY_HEIGHT)
+GAME_DISPLAY_X = (SCREEN_WIDTH - GAME_DISPLAY_WIDTH) // 2
+GAME_DISPLAY_Y = (SCREEN_HEIGHT - GAME_DISPLAY_HEIGHT) // 2
+
+WORD_DISPLAY_WIDTH = 800
+WORD_DISPLAY_HEIGHT = 200
+WORD_DISPLAY_SIZE = (WORD_DISPLAY_WIDTH, WORD_DISPLAY_HEIGHT)
+WORD_DISPLAY_X = SCREEN_WIDTH // 2
+WORD_DISPLAY_Y = (SCREEN_HEIGHT - WORD_DISPLAY_HEIGHT) // 2
+# Game display
+
+# Font
+FONT_TYPE = 'GEORGIA'
+FONT_SMALL = pygame.font.SysFont(FONT_TYPE, 24)
+FONT_MEDIUM = pygame.font.SysFont(FONT_TYPE, 36)
+FONT_LARGE = pygame.font.SysFont(FONT_TYPE, 48)
+FONT_XLARGE = pygame.font.SysFont(FONT_TYPE, 60) # For the puzzle reveal
+FONT_XXLARGE = pygame.font.SysFont(FONT_TYPE, 72) # For the title
+HIGHLIGHT_COLOR = (255, 215, 0)  # Gold/yellow highlight
+# Load font
+
+#Music
+pygame.mixer.music.load("Assets/Superfly Full Mix.mp3")  # Replace with your music file
+pygame.mixer.music.set_volume(0.5)  # Set volume (0.0 to 1.0)
+
+# Game values
+VOWELS = ('A', 'E', 'I', 'O', 'U')
+CONSONANTS = ('B', 'C', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'X', 'Y', 'Z')
+WHEEL_VALUES = [
+    2500, 600, 700, 650, 800, 500, 600, 550, 500, 600,
+    650, 700, 800, 550, 900, 500, 600, 700, 800, 500,
+    600, 650, 700, 1000, 'BANKRUPT', 'LOSE A TURN'
+] # More visually appealing order
+
+# --- Helper Functions ---
+
+def load_sound(filename):
+    """Loads a sound file and handles errors."""
+    try:
+        sound = pygame.mixer.Sound(filename)
+        return sound
+    except pygame.error as e:
+        print(f"Error loading sound file {filename}: {e}")
+        return None
+
+def display_message(surface, message, font, color, position, center=True):
+    """Displays a text message on the screen."""
+    text = font.render(message, True, color)
+    rect = text.get_rect()
+    if center:
+        rect.center = position
+    else:
+        rect.topleft = position
+    surface.blit(text, rect)
+    
+def draw_button(surface, rect, text, font, text_color, highlight_color, mouse_pos):
+    """Draws a button and highlights it if hovered."""
+    if rect.collidepoint(mouse_pos):
+        text_color = PURPLE
+        pygame.draw.rect(surface, highlight_color, rect)
+    else:
+        # text_color = WHITE
+        pygame.draw.rect(surface, WHITE, rect, 2)
+    display_message(surface, text, font, text_color, rect.center)
+
+
+
+def get_text_input(surface, prompt, font, text_color, bg_color, input_rect_center, overlap=False, puzzle='', revealed='', spin_value=None, category=''):
+    """Gets text input from the user."""
+    input_text = ""
+    active = True
+    input_rect = pygame.Rect(0, 0, 200, 50)  # Make the input rect a variable
+    input_rect.center = input_rect_center  # Center the input rect
+
+    while active:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    active = False
+                elif event.key == pygame.K_BACKSPACE:
+                    print(input_text)
+                    input_text = input_text[:-1]
+                else:
+                    input_text += event.unicode
+
+        surface.fill(bg_color)
+        if overlap and len(puzzle) > 0:
+            display_board(surface, puzzle, revealed, font, text_color, 40, 50, WORD_DISPLAY_X, SCREEN_WIDTH) #show the board
+            display_message(surface, f'WHEEL OF FORTUNE', FONT_XXLARGE, text_color, (SCREEN_WIDTH // 2, 100))
+            display_message(surface, f"Category: {category}", font, text_color, (GAME_DISPLAY_X, SCREEN_HEIGHT // 4))
+            display_message(surface, f"Spin Value: {spin_value}", FONT_MEDIUM, text_color, (GAME_DISPLAY_X, SCREEN_HEIGHT // 4 + 50))
+        elif overlap and len(puzzle) == 0:
+            display_message(surface, f'WHEEL OF FORTUNE', FONT_XXLARGE, text_color, (SCREEN_WIDTH // 2, 100))
+            # surface.fill(bg_color)
+        
+        # display_board(surface, puzzle, revealed, font, text_color, 40, 50, SCREEN_WIDTH) #show the board
+        display_message(surface, prompt, font, text_color, (input_rect.centerx, input_rect.y - 30))  # Position prompt above
+        pygame.draw.rect(surface, text_color, input_rect, 2)  # Draw the input rectangle
+        text_surface = font.render(input_text, True, text_color)
+        text_rect = text_surface.get_rect(center=input_rect.center)  # Center the text
+        surface.blit(text_surface, text_rect)
+        pygame.display.flip()
+    return input_text
+
+
+# def draw_wheel(surface, center, radius, angle, values, spin_color, text_color):
+#     """Draws the Wheel of Fortune."""
+#     num_slices = len(values)
+#     slice_angle = 360 / num_slices
+#     for i in range(num_slices):
+#         start_angle = i * slice_angle + angle
+#         end_angle = (i + 1) * slice_angle + angle
+#         # Use modulus to cycle through colors
+#         color = spin_color[i % len(spin_color)]
+#         pygame.draw.arc(
+#             surface, color,
+#             (center[0] - radius, center[1] - radius, radius * 2, radius * 2),
+#             math.radians(start_angle), math.radians(end_angle), 50
+#         )
+
+#         # --- Draw a filled sector as the text background ---
+#         inner_r = radius * 0.62  # Inner radius for the sector
+#         outer_r = radius * 0.78  # Outer radius for the sector
+#         num_points = 20  # Number of points to approximate the arc
+
+#         # Points along the outer arc
+#         outer_points = [
+#             (
+#                 center[0] + outer_r * math.cos(math.radians(start_angle + (end_angle - start_angle) * t / num_points)),
+#                 center[1] + outer_r * math.sin(math.radians(start_angle + (end_angle - start_angle) * t / num_points))
+#             )
+#             for t in range(num_points + 1)
+#         ]
+#         # Points along the inner arc (in reverse)
+#         inner_points = [
+#             (
+#                 center[0] + inner_r * math.cos(math.radians(end_angle - (end_angle - start_angle) * t / num_points)),
+#                 center[1] + inner_r * math.sin(math.radians(end_angle - (end_angle - start_angle) * t / num_points))
+#             )
+#             for t in range(num_points + 1)
+#         ]
+#         sector_points = outer_points + inner_points
+
+#         # Draw the sector (semi-transparent black)
+#         sector_surface = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+#         shifted_points = [
+#             (x - (center[0] - radius), y - (center[1] - radius)) for x, y in sector_points
+#         ]
+#         pygame.draw.polygon(sector_surface, (0, 0, 0, 180), shifted_points)
+#         surface.blit(sector_surface, (center[0] - radius, center[1] - radius))
+
+#         # Calculate the middle angle for the text
+#         text_angle = (start_angle + end_angle) / 2
+#         text_radius = radius * 0.7  # Adjust to position text within the slice
+#         x = center[0] + text_radius * math.cos(math.radians(text_angle))
+#         y = center[1] + text_radius * math.sin(math.radians(text_angle))
+
+#         # Rotate the text
+#         text_surface = FONT_SMALL.render(str(values[i]), True, text_color)
+#         rotated_text = pygame.transform.rotate(text_surface, -text_angle)
+#         text_rect = rotated_text.get_rect(center=(int(x), int(y)))
+
+#         # Draw the text on top of the sector
+#         surface.blit(rotated_text, text_rect)
+
+
+def draw_wheel(surface, center, radius, angle, values, spin_color, text_color):
+    """Draws a visually improved Wheel of Fortune."""
+    num_slices = len(values)
+    slice_angle = 360 / num_slices
+
+    # Draw each slice as a filled sector
+    for i in range(num_slices):
+        start_angle = i * slice_angle + angle
+        end_angle = (i + 1) * slice_angle + angle
+        color = spin_color[i % len(spin_color)]
+
+        # Points for the sector (pie slice)
+        points = [center]
+        for t in range(0, 11):
+            interp_angle = start_angle + (end_angle - start_angle) * t / 10
+            x = center[0] + radius * math.cos(math.radians(interp_angle))
+            y = center[1] + radius * math.sin(math.radians(interp_angle))
+            points.append((x, y))
+        pygame.draw.polygon(surface, color, points)
+
+    # Draw a hub in the center
+    pygame.draw.circle(surface, (40, 40, 40), center, int(radius * 0.25))
+
+    # Draw slice borders
+    for i in range(num_slices):
+        border_angle = i * slice_angle + angle
+        x = center[0] + radius * math.cos(math.radians(border_angle))
+        y = center[1] + radius * math.sin(math.radians(border_angle))
+        pygame.draw.line(surface, (0, 0, 0), center, (x, y), 4)
+
+    # Draw text with a sector background for readability
+    for i in range(num_slices):
+        start_angle = i * slice_angle + angle
+        end_angle = (i + 1) * slice_angle + angle
+        text_angle = (start_angle + end_angle) / 2
+        text_radius = radius * 0.7
+        x = center[0] + text_radius * math.cos(math.radians(text_angle))
+        y = center[1] + text_radius * math.sin(math.radians(text_angle))
+
+        # Draw a small sector background for the text
+        inner_r = radius * 0.62
+        outer_r = radius * 0.78
+        num_points = 12
+        outer_points = [
+            (
+                center[0] + outer_r * math.cos(math.radians(start_angle + (end_angle - start_angle) * t / num_points)),
+                center[1] + outer_r * math.sin(math.radians(start_angle + (end_angle - start_angle) * t / num_points))
+            )
+            for t in range(num_points + 1)
+        ]
+        inner_points = [
+            (
+                center[0] + inner_r * math.cos(math.radians(end_angle - (end_angle - start_angle) * t / num_points)),
+                center[1] + inner_r * math.sin(math.radians(end_angle - (end_angle - start_angle) * t / num_points))
+            )
+            for t in range(num_points + 1)
+        ]
+        sector_points = outer_points + inner_points
+        sector_surface = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+        shifted_points = [
+            (px - (center[0] - radius), py - (center[1] - radius)) for px, py in sector_points
+        ]
+        pygame.draw.polygon(sector_surface, (0, 0, 0, 180), shifted_points)
+        surface.blit(sector_surface, (center[0] - radius, center[1] - radius))
+
+        # Draw the value text
+        text_surface = FONT_SMALL.render(str(values[i]), True, text_color)
+        rotated_text = pygame.transform.rotate(text_surface, -text_angle)
+        text_rect = rotated_text.get_rect(center=(int(x), int(y)))
+        surface.blit(rotated_text, text_rect)
+
+
+def display_board(surface, puzzle, revealed, font, text_color, rect_width, rect_height, starting_x, screen_width):
+    """Displays the puzzle board, wrapping to a new line if the puzzle is too long."""
+    # max_letters_per_line = max((screen_width - 200) // (rect_width + 10), 1)  # 600 for margins
+    max_letters_per_line = max(((starting_x + WORD_DISPLAY_WIDTH) - 200) // (rect_width + 10), 1)  # 600 for margins
+    lines = []
+    current_line = []
+    for i, char in enumerate(puzzle):
+        current_line.append((i, char))
+        if len(current_line) >= max_letters_per_line and char == ' ':
+            lines.append(current_line)
+            current_line = []
+    if current_line:
+        lines.append(current_line)
+
+    total_height = len(lines) * (rect_height + 20)
+    start_y = SCREEN_HEIGHT // 2 - total_height // 2 - 100
+
+    for line_num, line in enumerate(lines):
+        line_length = len(line)
+        board_width = line_length * rect_width + (line_length - 1) * 10  # Space between letters
+        # start_x = (screen_width - board_width) // 2 + 300
+        start_x = starting_x
+        y = start_y + line_num * (rect_height + 20)
+        for j, (i, char) in enumerate(line):
+            x = start_x + j * (rect_width + 10)
+            rect = pygame.Rect(x, y, rect_width, rect_height)
+            pygame.draw.rect(surface, WHITE, rect, 2)  # White outline for the board slots
+
+            if char.isalpha():  # Only display letters, not spaces or punctuation
+                if revealed[i]:
+                    display_message(surface, char.upper(), font, text_color, rect.center, center=True)
+                else:
+                    pygame.draw.rect(surface, GRAY, rect) #show grayed out if not revealed
+                    
+def choose_category(surface, categories, font, text_color, bg_color):
+    """Lets the player choose a category for the puzzle."""
+    while True:
+        surface.fill(bg_color)
+        display_message(surface, "Choose a Category:", font, text_color, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4))
+
+        for i, category in enumerate(categories):
+            y_pos = SCREEN_HEIGHT // 3 + i * 50
+            rect = pygame.Rect(SCREEN_WIDTH // 4, y_pos, SCREEN_WIDTH // 2, 40)
+            pygame.draw.rect(surface, WHITE, rect, 2)
+            display_message(surface, category, font, text_color, rect.center, center=True)
+
+        pygame.display.flip()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_pos = pygame.mouse.get_pos()
+                for i, category in enumerate(categories):
+                    y_pos = SCREEN_HEIGHT // 3 + i * 50
+                    rect = pygame.Rect(SCREEN_WIDTH // 4, y_pos, SCREEN_WIDTH // 2, 40)
+                    if rect.collidepoint(mouse_pos):
+                        return category
+
+def reveal_letters(puzzle, revealed, guess):
+    """Reveals the positions of a guessed letter in the puzzle."""
+    positions = [i for i, letter in enumerate(puzzle) if letter.upper() == guess.upper()]
+    for pos in positions:
+        revealed[pos] = True
+    return len(positions) # Return the number of letters revealed
+
+def generate_puzzle(category, puzzles):
+    """Selects a random puzzle from the chosen category."""
+    return random.choice(puzzles[category]).upper()
+
+def create_revealed_array(puzzle):
+    """Creates a boolean array indicating which letters in the puzzle have been revealed."""
+    return [False for _ in puzzle]
+
+def calculate_winnings(spin_value, num_revealed):
+    """Calculates the winnings for a correct letter guess."""
+    if isinstance(spin_value, int):
+        return spin_value * num_revealed
+    return 0  # Return 0 for BANKRUPT or LOSE A TURN
+
+def display_player_info(surface, player, font, color, position):
+    """Displays player information (name and score)."""
+    display_message(surface, f"{player['name']}: ${player['score']}", font, color, position, center=False)
+
+def display_current_player(surface, player_name, font, color, position):
+    """Displays the current player's name."""
+    display_message(surface, f"Current Player: {player_name}", font, color, position, center=False)
+
+def switch_player(current_player_index, players):
+    """Switches to the next player."""
+    return (current_player_index + 1) % len(players)
+
+def spin_wheel(surface, center, radius, values, angle, spin_duration, spin_color, text_color):
+    """Simulates the spinning of the wheel."""
+    start_time = time.time()
+    current_angle = angle
+    while time.time() - start_time < spin_duration:
+        for event in pygame.event.get():  # Handle events during spin
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                exit()
+        time_elapsed = time.time() - start_time
+        #ease out
+        delta_angle = (time_elapsed / spin_duration) * 720 + (1 - (time_elapsed / spin_duration)) * 1440
+        current_angle += delta_angle
+        surface.fill(DARK_PURPLE)  # Clear the screen
+        draw_wheel(surface, center, radius, current_angle, values, spin_color, text_color)
+        pygame.display.flip()
+    return current_angle % 360  # Return the final angle
+
+def get_wheel_value(angle, values):
+    """Gets the value of the wheel at the given angle."""
+    num_slices = len(values)
+    slice_angle = 360 / num_slices
+    # Normalize angle to be within 0-360
+    normalized_angle = angle % 360
+    slice_index = int(normalized_angle // slice_angle)
+    return values[slice_index]
+
+def handle_spin_result(surface, player, spin_value, puzzle, revealed, font, text_color, players, current_player_index, wheel_sound, bankrupt_sound, lose_turn_sound, category=''):
+    """Handles the result of a wheel spin."""
+    if spin_value == 'BANKRUPT':
+        if bankrupt_sound:
+            bankrupt_sound.play()
+        player['score'] = 0
+        display_message(surface, "BANKRUPT!", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+        pygame.display.flip()
+        time.sleep(2)
+        return 'BANKRUPT', current_player_index  # Return action and player index
+    elif spin_value == 'LOSE A TURN':
+        if lose_turn_sound:
+            lose_turn_sound.play()
+        display_message(surface, "LOSE A TURN!", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+        pygame.display.flip()
+        time.sleep(2)
+        return 'LOSE A TURN', current_player_index #return action and player index
+    else:
+        if wheel_sound:
+            wheel_sound.play()
+            display_message(surface, f"{spin_value}!", font, GREEN, (SCREEN_WIDTH // 4, SCREEN_HEIGHT // 2))
+            pygame.display.flip()
+            time.sleep(5)
+        guess = get_text_input(surface, f"Guess a consonant:", font, text_color, DARK_PURPLE, (WORD_DISPLAY_X, SCREEN_HEIGHT // 2 + 100), overlap=True, puzzle=puzzle, revealed=revealed, spin_value=spin_value, category=category)
+        # display_message(surface, f"{spin_value}!", font, GREEN, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 40))
+        if guess.upper() in CONSONANTS:
+            num_revealed = reveal_letters(puzzle, revealed, guess)
+            if num_revealed > 0:
+                winnings = calculate_winnings(spin_value, num_revealed)
+                player['score'] += winnings
+                display_message(surface, f"There are {num_revealed} {guess}'s.  You win ${winnings}!", font, GREEN, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
+                pygame.display.flip()
+                time.sleep(3)
+                return 'CORRECT', current_player_index
+            else:
+                display_message(surface, "Sorry, there are no " + guess + "'s.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
+                pygame.display.flip()
+                time.sleep(2)
+                return 'INCORRECT', current_player_index
+        else:
+            display_message(surface, "Invalid guess.  Must be a consonant.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
+            pygame.display.flip()
+            time.sleep(2)
+            return 'INVALID', current_player_index # added return
+
+def handle_buy_vowel(surface, player, puzzle, revealed, font, text_color, bg_color, buy_vowel_sound):
+    """Handles the buying of a vowel."""
+    if player['score'] < 250:
+        display_message(surface, "You don't have enough money to buy a vowel.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+        pygame.display.flip()
+        time.sleep(2)
+        return False  # Indicate failure
+    else:
+        if buy_vowel_sound:
+            buy_vowel_sound.play()
+        player['score'] -= 250
+        display_board(surface, puzzle, revealed, font, text_color, 40, 50, WORD_DISPLAY_X, SCREEN_WIDTH) #show the board
+        guess = get_text_input(surface, "Guess a vowel:", font, text_color, bg_color, (WORD_DISPLAY_X, SCREEN_HEIGHT // 2 + 100), overlap=True, puzzle=puzzle, revealed=revealed)
+        if guess.upper() in VOWELS:
+            num_revealed = reveal_letters(puzzle, revealed, guess)
+            if num_revealed > 0:
+                display_message(surface, f"There are {num_revealed} {guess}'s.", font, GREEN, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
+                pygame.display.flip()
+                time.sleep(2)
+                return True # Indicate success
+            else:
+                display_message(surface, "Sorry, there are no " + guess + "'s.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
+                pygame.display.flip()
+                time.sleep(2)
+                return False
+        else:
+            display_message(surface, "Invalid guess.  Must be a vowel.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
+            pygame.display.flip()
+            time.sleep(2)
+            return False
+
+def handle_solve_puzzle(surface, player, puzzle, revealed, font, text_color, bg_color, win_sound):
+    """Handles a player's attempt to solve the puzzle."""
+    # surface.fill(bg_color)
+    # display_board(surface, puzzle, revealed, font, text_color, 40, 50, SCREEN_WIDTH) #show the board
+    # pygame.display.update()
+    guess = get_text_input(surface, "Enter your solution:", font, text_color, bg_color, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2), overlap=True, puzzle=puzzle, revealed=revealed)
+    if guess.upper() == puzzle.upper():
+        if win_sound:
+            win_sound.play()
+        for i in range(len(puzzle)): #reveal all letters
+            revealed[i] = True
+        display_board(surface, puzzle, revealed, font, text_color, 40, 50, WORD_DISPLAY_X, SCREEN_WIDTH) #show the board
+        display_message(surface, "YOU SOLVED THE PUZZLE!", FONT_XLARGE, GREEN, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 60))
+        pygame.display.flip()
+        time.sleep(5)
+        return True
+    else:
+        display_message(surface, "That is not the correct solution.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 40))
+        pygame.display.flip()
+        time.sleep(2)
+        return False
+
+def display_round_winner(surface, player, font, color):
+    """Displays the winner of the round"""
+    display_message(surface, f"{player['name']} wins the round with ${player['score']}!", font, color, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 200))
+
+def reset_round(players):
+    """Resets the players' scores for a new round."""
+    for player in players:
+        player['score'] = 0
+
+def has_unrevealed_vowels(puzzle, revealed):
+    """Returns True if there are unrevealed vowels in the puzzle."""
+    for i, char in enumerate(puzzle):
+        if char.upper() in VOWELS and not revealed[i]:
+            return True
+    return False
+
+def has_unrevealed_consonants(puzzle, revealed):
+    """Returns True if there are unrevealed consonants in the puzzle."""
+    for i, char in enumerate(puzzle):
+        if char.upper() in CONSONANTS and not revealed[i]:
+            return True
+    return False
+
+def main():
+    """Main game function."""
+    # --- Initialization ---
+    screen = pygame.display.set_mode(SCREEN_SIZE)
+    pygame.display.set_caption("Wheel of Fortune")
+
+    # --- Sound Effects ---
+    # Load sound effects (replace with actual file paths if needed)
+    wheel_sound = load_sound("Assets/Wheel-Sound.wav")  # Replace with your sound file
+    bankrupt_sound = load_sound("Assets/awww-01.wav")  # Replace with your sound file
+    lose_turn_sound = load_sound("Assets/awww-01.wav")  # Replace with your sound file
+    win_sound = load_sound("Assets/Crowd_Cheer.wav")  # Replace with your sound file
+    buy_vowel_sound = load_sound("Assets/bonus.wav") #sound for buying a vowel
+
+    # --- Game Data ---
+    categories = ["Food & Drink", "Movies", "Places", "Music", "Science", "Literature", "Cartoons", "Wine"]
+    puzzles = {
+        "Food & Drink": ["Pizza", "Hamburger", "Sushi", "Chocolate Cake", "Coffee", "Spaghetti", "Ice Cream", "Tacos", "Salad", "Pasta", "Sandwich", "Cereal", "Donut", "Steak", "Fried Chicken", "Watermelon", "Cheeseburger", "Milkshake", "Pancakes", "French Fries"],
+        "Movies": ["Star Wars", "The Matrix", "Pulp Fiction", "The Dark Knight", "Avatar", "Jurassic Park", "Frozen", "Inception", "Titanic", "The Godfather", "Harry Potter", "The Lion King", "The Avengers", "Finding Nemo", "Toy Story"],
+        "Places": ["Paris", "New York", "Tokyo", "London", "Rome", "Barcelona", "Berlin", "Dubai", "Amsterdam", "Rio de Janeiro", "Los Angeles", "Beijing", "New Delhi", "Moscow", "Sydney", "Singapore"],
+        "Music": ["Jazz", "Rock", "Classical", "Hip Hop", "Country"],
+        "Science": ["Gravity", "Relativity", "Photosynthesis", "Black Hole", "DNA", "Atom", "Molecule", "Evolution", "Quantum Mechanics", "Thermodynamics", "Electromagnetism", "Cell Biology", "Genetics", "Astrophysics", "Chemistry"],
+        "Literature": ["Hamlet", "Pride and Prejudice", "The Great Gatsby", "To Kill a Mockingbird", "The Catcher in the Rye", "The Odyssey", "War and Peace", "Moby", "Great Expectations", "The Brothers Karamazov", "Crime and Punishment", "The Picture of Dorian Gray", "Brave New World", "The Grapes of Wrath", "The Hobbit"],
+        "Cartoons": ["SpongeBob SquarePants", "The Simpsons", "Looney Tunes", "Tom and Jerry", "Scooby Doo", "Avatar The Last Airbender", "Teen Titans", "Adventure Time", "Gravity Falls", "Futurama", "Rick and Morty", "Johnny Bravo", "The Flintstones", "The Jetsons", "DuckTales", "Squidward", "Popeye", "Dora the Explorer", "Bluey", "Peppa Pig", "Little Einsteins", "Arthur", "Hey Arnold!", "The Magic School Bus", "The Fairly OddParents", "Kim Possible", "Avatar: The Legend of Korra", "The Amazing World of Gumball", "Steven Universe"],
+        "Wine":["Cabernet Sauvignon", "Chardonnay", "Merlot", "Pinot Noir", "Sauvignon Blanc", "Syrah", "Zinfandel", "Riesling", "Malbec", "Tempranillo", "Grenache", "Shiraz", "Moscato", "Prosecco", "Champagne"]
+    }
+    spin_colors = [RED, GREEN, BLUE, YELLOW, RED, GREEN, BLUE, YELLOW] # Color list for wheel
+    text_color = WHITE
+    bg_color = DARK_PURPLE
+    rect_width = 40
+    rect_height = 50
+    num_players = 0
+
+    # --- Player Setup ---
+    while num_players < 1 or num_players > 3:
+        screen.fill(bg_color)
+        display_message(screen, "WHEEL OF FORTUNE", FONT_XXLARGE, text_color, (SCREEN_WIDTH // 2, 100))
+        pygame.display.flip()
+        num_players = int(get_text_input(screen, "Enter number of players (1-3):", FONT_MEDIUM, text_color, bg_color, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2), overlap=True))
+
+    players = []
+    for i in range(num_players):
+        screen.fill(bg_color)
+        display_message(screen, f"WHEEL OF FORTUNE", FONT_XLARGE, text_color, (SCREEN_WIDTH // 2, 100))
+        pygame.display.flip()
+        player_name = get_text_input(screen, f"Enter name for Player {i + 1}:", FONT_MEDIUM, text_color, bg_color, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2), overlap=True)
+        players.append({'name': player_name, 'score': 0, 'total_score': 0})
+
+    current_player_index = 0
+    game_over = False
+    round_num = 1
+
+    # --- Game Loop ---
+    while not game_over:
+        screen.fill(bg_color)
+        category = choose_category(screen, categories, FONT_MEDIUM, text_color, bg_color)
+        puzzle = generate_puzzle(category, puzzles)
+        revealed = create_revealed_array(puzzle)
+        wheel_angle = 0
+        current_player = players[current_player_index]
+
+        # --- Round Loop ---
+        round_over = False
+        while not round_over:
+            screen.fill(bg_color)  # Clear the screen at the start of each turn
+            display_message(screen, f"Round {round_num}", FONT_LARGE, text_color, (SCREEN_WIDTH // 2, 50))
+            display_current_player(screen, current_player['name'], FONT_MEDIUM, text_color, (20, 20))
+            display_player_info(screen, players[0], FONT_MEDIUM, text_color, (20, 60))  # Player 1 info
+            if num_players > 1:
+                display_player_info(screen, players[1], FONT_MEDIUM, text_color, (20, 100))  # Player 2 info
+            if num_players > 2:
+                display_player_info(screen, players[2], FONT_MEDIUM, text_color, (20, 140))  # Player 3 info
+
+            draw_wheel(screen, (SCREEN_WIDTH // 4, SCREEN_HEIGHT // 2), 300, wheel_angle, WHEEL_VALUES, spin_colors, text_color)
+            if not all(revealed):
+                display_board(screen, puzzle, revealed, FONT_MEDIUM, text_color, rect_width, rect_height, WORD_DISPLAY_X, SCREEN_WIDTH) #show the board
+            
+            # Display category
+            
+            display_message(screen,"Category: " + category, FONT_MEDIUM, text_color, (WORD_DISPLAY_X + 150,  SCREEN_HEIGHT // 4))
+
+            # --- Game Options ---
+             
+            mouse_pos = pygame.mouse.get_pos()
+            
+
+            if has_unrevealed_vowels(puzzle, revealed):
+                buy_vowel_button = pygame.Rect(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT * 3 // 4, 300, 50)
+                draw_button(screen, buy_vowel_button, "Buy Vowel (-$250)", FONT_MEDIUM, text_color, HIGHLIGHT_COLOR, mouse_pos)
+            else:
+                buy_vowel_button = None
+
+            if has_unrevealed_consonants(puzzle, revealed):
+                spin_button = pygame.Rect(SCREEN_WIDTH // 2 + 250, SCREEN_HEIGHT * 3 // 4, 200, 50)
+                draw_button(screen, spin_button, "Spin Wheel", FONT_MEDIUM, text_color, HIGHLIGHT_COLOR, mouse_pos)
+            else:
+                spin_button = None
+
+            solve_puzzle_button = pygame.Rect(SCREEN_WIDTH // 2 + 500, SCREEN_HEIGHT * 3 // 4, 210, 50)
+            draw_button(screen, solve_puzzle_button, "Solve Puzzle", FONT_MEDIUM, text_color, HIGHLIGHT_COLOR, mouse_pos)
+
+            pygame.display.flip()
+
+            # --- Event Handling ---
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    exit()
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    mouse_pos = pygame.mouse.get_pos()
+                    if spin_button.collidepoint(mouse_pos):
+                        wheel_angle = spin_wheel(screen, (SCREEN_WIDTH // 4, SCREEN_HEIGHT // 2), 200, WHEEL_VALUES, wheel_angle, 3, spin_colors, text_color)
+                        spin_value = get_wheel_value(wheel_angle, WHEEL_VALUES)
+                        action, current_player_index = handle_spin_result(screen, current_player, spin_value, puzzle, revealed, FONT_MEDIUM, text_color, players, current_player_index, wheel_sound, bankrupt_sound, lose_turn_sound, category=category)
+                        if action == 'BANKRUPT' or action == 'LOSE A TURN' or action == 'INCORRECT':
+                            current_player_index = switch_player(current_player_index, players)
+                            current_player = players[current_player_index]
+                        elif action == 'CORRECT':
+                            pass
+                        elif action == 'INVALID':
+                            pass
+                    elif buy_vowel_button.collidepoint(mouse_pos):
+                        vowel_bought = handle_buy_vowel(screen, current_player, puzzle, revealed, FONT_MEDIUM, text_color, bg_color, buy_vowel_sound)
+                        if not vowel_bought:
+                            current_player_index = switch_player(current_player_index, players)
+                            current_player = players[current_player_index]
+                    elif solve_puzzle_button.collidepoint(mouse_pos):
+                        solved = handle_solve_puzzle(screen,current_player, puzzle, revealed, FONT_MEDIUM, text_color, bg_color, win_sound)
+                        if solved:
+                            round_over = True
+
+            # --- Check for puzzle solved after every action ---
+            if all(revealed):
+                display_board(screen, puzzle, revealed, FONT_MEDIUM, text_color, rect_width, rect_height, WORD_DISPLAY_X, SCREEN_WIDTH) #show the board
+                round_over = True
+                pygame.display.flip()
+
+        # Determine round winner
+        round_winner = max(players, key=lambda p: p['score'])
+        round_winner['total_score'] += round_winner['score']
+        display_round_winner(screen, round_winner, FONT_XLARGE, YELLOW)
+        pygame.display.flip()
+        time.sleep(5)
+
+        # Reset scores for the next round
+        reset_round(players)
+        round_num += 1
+
+        if round_num > 3:  # Play 3 rounds
+            game_over = True
+
+    # Determine overall winner (highest score after 3 rounds)
+    overall_winner = max(players, key=lambda p: p['total_score'])
+    screen.fill(bg_color)
+    display_message(screen, "Game Over!", FONT_XLARGE, text_color, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 3))
+    display_message(screen, f"Overall Winner: {overall_winner['name']} with ${overall_winner['total_score']}!", FONT_XLARGE, YELLOW, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+    pygame.display.flip()
+    time.sleep(5)
+
+    pygame.quit()
+
+if __name__ == "__main__":
+    pygame.mixer.music.play(-1)  # Loop the music
+    main()
