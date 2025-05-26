@@ -35,7 +35,7 @@ GAME_DISPLAY_Y = (SCREEN_HEIGHT - GAME_DISPLAY_HEIGHT) // 2
 WORD_DISPLAY_WIDTH = 800
 WORD_DISPLAY_HEIGHT = 200
 WORD_DISPLAY_SIZE = (WORD_DISPLAY_WIDTH, WORD_DISPLAY_HEIGHT)
-WORD_DISPLAY_X = SCREEN_WIDTH // 2
+WORD_DISPLAY_X = SCREEN_WIDTH // 2 + 100
 WORD_DISPLAY_Y = (SCREEN_HEIGHT - WORD_DISPLAY_HEIGHT) // 2
 # Game display
 
@@ -58,7 +58,7 @@ VOWELS = ('A', 'E', 'I', 'O', 'U')
 CONSONANTS = ('B', 'C', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'X', 'Y', 'Z')
 WHEEL_VALUES = [
     2500, 600, 700, 650, 800, 500, 600, 550, 500, 600,
-    650, 700, 800, 550, 900, 500, 600, 700, 800, 500,
+    650, 700, 800, 'BANKRUPT', 900, 500, 600, 700, 800, 500,
     600, 650, 700, 1000, 'BANKRUPT', 'LOSE A TURN'
 ] # More visually appealing order
 
@@ -95,11 +95,20 @@ def draw_button(surface, rect, text, font, text_color, highlight_color, mouse_po
 
 
 
-def get_text_input(surface, prompt, font, text_color, bg_color, input_rect_center, overlap=False, puzzle='', revealed='', spin_value=None, category=''):
+def get_text_input(surface, prompt, font, text_color, bg_color, input_rect_center, overlap=False, puzzle='', revealed='', spin_value=None, category='', current_player_name=None):
     """Gets text input from the user."""
     input_text = ""
     active = True
-    input_rect = pygame.Rect(0, 0, 200, 50)  # Make the input rect a variable
+
+    # Dynamically set input box width based on puzzle width
+    if puzzle:
+        puzzle_surface = font.render(puzzle, True, text_color)
+        input_box_width = puzzle_surface.get_width() + 40  # Add some padding
+        input_box_width = max(200, min(input_box_width, SCREEN_WIDTH - 100))  # Clamp to reasonable range
+    else:
+        input_box_width = 200
+
+    input_rect = pygame.Rect(0, 0, input_box_width, 50)
     input_rect.center = input_rect_center  # Center the input rect
 
     while active:
@@ -111,26 +120,26 @@ def get_text_input(surface, prompt, font, text_color, bg_color, input_rect_cente
                 if event.key == pygame.K_RETURN:
                     active = False
                 elif event.key == pygame.K_BACKSPACE:
-                    print(input_text)
                     input_text = input_text[:-1]
                 else:
                     input_text += event.unicode
 
         surface.fill(bg_color)
         if overlap and len(puzzle) > 0:
-            display_board(surface, puzzle, revealed, font, text_color, 40, 50, WORD_DISPLAY_X, SCREEN_WIDTH) #show the board
+            display_board(surface, puzzle, revealed, font, text_color, 40, 50, WORD_DISPLAY_X, SCREEN_WIDTH)
             display_message(surface, f'WHEEL OF FORTUNE', FONT_XXLARGE, text_color, (SCREEN_WIDTH // 2, 100))
             display_message(surface, f"Category: {category}", font, text_color, (GAME_DISPLAY_X, SCREEN_HEIGHT // 4))
             display_message(surface, f"Spin Value: {spin_value}", FONT_MEDIUM, text_color, (GAME_DISPLAY_X, SCREEN_HEIGHT // 4 + 50))
+            # Show current player under spin value
+            if current_player_name:
+                display_message(surface, f"Current Player: {current_player_name}", font, text_color, (GAME_DISPLAY_X, SCREEN_HEIGHT // 4 + 90))
         elif overlap and len(puzzle) == 0:
             display_message(surface, f'WHEEL OF FORTUNE', FONT_XXLARGE, text_color, (SCREEN_WIDTH // 2, 100))
-            # surface.fill(bg_color)
-        
-        # display_board(surface, puzzle, revealed, font, text_color, 40, 50, SCREEN_WIDTH) #show the board
-        display_message(surface, prompt, font, text_color, (input_rect.centerx, input_rect.y - 30))  # Position prompt above
-        pygame.draw.rect(surface, text_color, input_rect, 2)  # Draw the input rectangle
+
+        display_message(surface, prompt, font, text_color, (input_rect.centerx, input_rect.y - 30))
+        pygame.draw.rect(surface, text_color, input_rect, 2)
         text_surface = font.render(input_text, True, text_color)
-        text_rect = text_surface.get_rect(center=input_rect.center)  # Center the text
+        text_rect = text_surface.get_rect(center=input_rect.center)
         surface.blit(text_surface, text_rect)
         pygame.display.flip()
     return input_text
@@ -197,21 +206,48 @@ def get_text_input(surface, prompt, font, text_color, bg_color, input_rect_cente
 #         surface.blit(rotated_text, text_rect)
 
 
-def draw_wheel(surface, center, radius, angle, values, spin_color, text_color):
-    """Draws a visually improved Wheel of Fortune."""
+FONT_WHEEL = pygame.font.SysFont(FONT_TYPE, 36, bold=True)
+FONT_WHEEL_SMALL = pygame.font.SysFont(FONT_TYPE, 22, bold=True)
+
+def draw_wheel(surface, center, radius, angle, values, spin_colors, text_color):
+    """Draws the Wheel of Fortune with grouped value colors and special slice styling."""
     num_slices = len(values)
     slice_angle = 360 / num_slices
 
+    # Assign a unique color to each unique value (except BANKRUPT and LOSE A TURN)
+    unique_values = []
+    for v in values:
+        if v not in unique_values and v not in ("BANKRUPT", "LOSE A TURN"):
+            unique_values.append(v)
+    # Pick as many distinct colors as needed for unique values
+    palette = [
+        (255, 99, 71), (60, 179, 113), (30, 144, 255), (255, 215, 0), (255, 140, 0),
+        (186, 85, 211), (0, 206, 209), (255, 105, 180), (154, 205, 50), (255, 69, 0),
+        (0, 191, 255), (255, 20, 147), (255, 182, 193), (0, 255, 127), (255, 165, 0),
+        (138, 43, 226), (0, 250, 154), (255, 0, 255), (255, 228, 181), (0, 128, 128),
+        (255, 222, 173), (255, 0, 0), (0, 255, 255), (255, 255, 0)
+    ]
+    value_color_map = {}
+    for idx, v in enumerate(unique_values):
+        value_color_map[v] = palette[idx % len(palette)]
+
     # Draw each slice as a filled sector
     for i in range(num_slices):
+        value = values[i]
+        if value == "BANKRUPT":
+            color = BLACK
+        elif value == "LOSE A TURN":
+            color = WHITE
+        else:
+            color = value_color_map[value]
+
         start_angle = i * slice_angle + angle
         end_angle = (i + 1) * slice_angle + angle
-        color = spin_color[i % len(spin_color)]
 
         # Points for the sector (pie slice)
         points = [center]
-        for t in range(0, 11):
-            interp_angle = start_angle + (end_angle - start_angle) * t / 10
+        for t in range(0, 16):
+            interp_angle = start_angle + (end_angle - start_angle) * t / 15
             x = center[0] + radius * math.cos(math.radians(interp_angle))
             y = center[1] + radius * math.sin(math.radians(interp_angle))
             points.append((x, y))
@@ -227,46 +263,37 @@ def draw_wheel(surface, center, radius, angle, values, spin_color, text_color):
         y = center[1] + radius * math.sin(math.radians(border_angle))
         pygame.draw.line(surface, (0, 0, 0), center, (x, y), 4)
 
-    # Draw text with a sector background for readability
+    # Draw text for each slice
     for i in range(num_slices):
+        value = str(values[i])
         start_angle = i * slice_angle + angle
         end_angle = (i + 1) * slice_angle + angle
         text_angle = (start_angle + end_angle) / 2
-        text_radius = radius * 0.7
+        text_radius = radius * 0.72
         x = center[0] + text_radius * math.cos(math.radians(text_angle))
         y = center[1] + text_radius * math.sin(math.radians(text_angle))
 
-        # Draw a small sector background for the text
-        inner_r = radius * 0.62
-        outer_r = radius * 0.78
-        num_points = 12
-        outer_points = [
-            (
-                center[0] + outer_r * math.cos(math.radians(start_angle + (end_angle - start_angle) * t / num_points)),
-                center[1] + outer_r * math.sin(math.radians(start_angle + (end_angle - start_angle) * t / num_points))
-            )
-            for t in range(num_points + 1)
-        ]
-        inner_points = [
-            (
-                center[0] + inner_r * math.cos(math.radians(end_angle - (end_angle - start_angle) * t / num_points)),
-                center[1] + inner_r * math.sin(math.radians(end_angle - (end_angle - start_angle) * t / num_points))
-            )
-            for t in range(num_points + 1)
-        ]
-        sector_points = outer_points + inner_points
-        sector_surface = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
-        shifted_points = [
-            (px - (center[0] - radius), py - (center[1] - radius)) for px, py in sector_points
-        ]
-        pygame.draw.polygon(sector_surface, (0, 0, 0, 180), shifted_points)
-        surface.blit(sector_surface, (center[0] - radius, center[1] - radius))
-
-        # Draw the value text
-        text_surface = FONT_SMALL.render(str(values[i]), True, text_color)
-        rotated_text = pygame.transform.rotate(text_surface, -text_angle)
-        text_rect = rotated_text.get_rect(center=(int(x), int(y)))
-        surface.blit(rotated_text, text_rect)
+        if value == "BANKRUPT":
+            txt_color = WHITE
+            font = FONT_WHEEL_SMALL
+            text_surface = font.render(value, True, txt_color)
+            rotated_text = pygame.transform.rotate(text_surface, -text_angle)
+            text_rect = rotated_text.get_rect(center=(int(x), int(y)))
+            surface.blit(rotated_text, text_rect)
+        elif value == "LOSE A TURN":
+            txt_color = BLACK
+            font = FONT_WHEEL_SMALL
+            text_surface = font.render(value, True, txt_color)
+            rotated_text = pygame.transform.rotate(text_surface, -text_angle)
+            text_rect = rotated_text.get_rect(center=(int(x), int(y)))
+            surface.blit(rotated_text, text_rect)
+        else:
+            txt_color = BLACK
+            font = FONT_WHEEL
+            text_surface = font.render(value, True, txt_color)
+            rotated_text = pygame.transform.rotate(text_surface, -text_angle)
+            text_rect = rotated_text.get_rect(center=(int(x), int(y)))
+            surface.blit(rotated_text, text_rect)
 
 
 def display_board(surface, puzzle, revealed, font, text_color, rect_width, rect_height, starting_x, screen_width):
@@ -309,11 +336,18 @@ def choose_category(surface, categories, font, text_color, bg_color):
         surface.fill(bg_color)
         display_message(surface, "Choose a Category:", font, text_color, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4))
 
+        mouse_pos = pygame.mouse.get_pos()
+        HIGHLIGHT_COLOR = (255, 215, 0)  # Gold/yellow highlight
+
         for i, category in enumerate(categories):
             y_pos = SCREEN_HEIGHT // 3 + i * 50
             rect = pygame.Rect(SCREEN_WIDTH // 4, y_pos, SCREEN_WIDTH // 2, 40)
-            pygame.draw.rect(surface, WHITE, rect, 2)
-            display_message(surface, category, font, text_color, rect.center, center=True)
+            if rect.collidepoint(mouse_pos):
+                pygame.draw.rect(surface, HIGHLIGHT_COLOR, rect)
+                display_message(surface, category, font, PURPLE, rect.center, center=True)
+            else:
+                pygame.draw.rect(surface, WHITE, rect, 2)
+                display_message(surface, category, font, text_color, rect.center, center=True)
 
         pygame.display.flip()
 
@@ -389,53 +423,79 @@ def get_wheel_value(angle, values):
     slice_index = int(normalized_angle // slice_angle)
     return values[slice_index]
 
-def handle_spin_result(surface, player, spin_value, puzzle, revealed, font, text_color, players, current_player_index, wheel_sound, bankrupt_sound, lose_turn_sound, category=''):
+def handle_spin_result(surface, player, spin_value, puzzle, revealed, font, text_color, players, current_player_index, wheel_sound, bankrupt_sound, lose_turn_sound, category='', guessed_letters=None):
     """Handles the result of a wheel spin."""
-    if spin_value == 'BANKRUPT':
+    if guessed_letters is None:
+        guessed_letters = set()
+    if spin_value == "BANKRUPT":
         if bankrupt_sound:
             bankrupt_sound.play()
-        player['score'] = 0
+        surface.fill(BLACK)  # Draw black background
         display_message(surface, "BANKRUPT!", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
         pygame.display.flip()
         time.sleep(2)
-        return 'BANKRUPT', current_player_index  # Return action and player index
-    elif spin_value == 'LOSE A TURN':
+        return 'BANKRUPT', current_player_index
+    elif spin_value == "LOSE A TURN":
         if lose_turn_sound:
             lose_turn_sound.play()
-        display_message(surface, "LOSE A TURN!", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+        # Draw black background and red text for "Lose a turn"
+        surface.fill(BLACK)
+        display_message(surface, "LOSE A TURN", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
         pygame.display.flip()
         time.sleep(2)
-        return 'LOSE A TURN', current_player_index #return action and player index
+        return 'LOSE A TURN', current_player_index
     else:
         if wheel_sound:
             wheel_sound.play()
             display_message(surface, f"{spin_value}!", font, GREEN, (SCREEN_WIDTH // 4, SCREEN_HEIGHT // 2))
             pygame.display.flip()
             time.sleep(5)
-        guess = get_text_input(surface, f"Guess a consonant:", font, text_color, DARK_PURPLE, (WORD_DISPLAY_X, SCREEN_HEIGHT // 2 + 100), overlap=True, puzzle=puzzle, revealed=revealed, spin_value=spin_value, category=category)
-        # display_message(surface, f"{spin_value}!", font, GREEN, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 40))
-        if guess.upper() in CONSONANTS:
-            num_revealed = reveal_letters(puzzle, revealed, guess)
-            if num_revealed > 0:
-                winnings = calculate_winnings(spin_value, num_revealed)
-                player['score'] += winnings
-                display_message(surface, f"There are {num_revealed} {guess}'s.  You win ${winnings}!", font, GREEN, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
-                pygame.display.flip()
-                time.sleep(3)
-                return 'CORRECT', current_player_index
-            else:
-                display_message(surface, "Sorry, there are no " + guess + "'s.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
+        while True:
+            guess = get_text_input(
+                surface,
+                f"Guess a consonant:",
+                font,
+                text_color,
+                DARK_PURPLE,
+                (WORD_DISPLAY_X, SCREEN_HEIGHT // 2 + 100),
+                overlap=True,
+                puzzle=puzzle,
+                revealed=revealed,
+                spin_value=spin_value,
+                category=category,
+                current_player_name=player['name']
+            )
+            guess = guess.upper()
+            if guess in guessed_letters or (guess in [puzzle[i].upper() for i, r in enumerate(revealed) if r]):
+                display_message(surface, "Letter already guessed. Pick another.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 200))
                 pygame.display.flip()
                 time.sleep(2)
-                return 'INCORRECT', current_player_index
-        else:
-            display_message(surface, "Invalid guess.  Must be a consonant.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
-            pygame.display.flip()
-            time.sleep(2)
-            return 'INVALID', current_player_index # added return
+                continue
+            if guess in CONSONANTS:
+                guessed_letters.add(guess)
+                num_revealed = reveal_letters(puzzle, revealed, guess)
+                if num_revealed > 0:
+                    winnings = calculate_winnings(spin_value, num_revealed)
+                    player['score'] += winnings
+                    display_message(surface, f"There are {num_revealed} {guess}'s.  You win ${winnings}!", font, GREEN, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
+                    pygame.display.flip()
+                    time.sleep(3)
+                    return 'CORRECT', current_player_index
+                else:
+                    display_message(surface, "Sorry, there are no " + guess + "'s.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
+                    pygame.display.flip()
+                    time.sleep(2)
+                    return 'INCORRECT', current_player_index
+            else:
+                display_message(surface, "Invalid guess.  Must be a consonant.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
+                pygame.display.flip()
+                time.sleep(2)
+                return 'INVALID', current_player_index # added return
 
-def handle_buy_vowel(surface, player, puzzle, revealed, font, text_color, bg_color, buy_vowel_sound):
+def handle_buy_vowel(surface, player, puzzle, revealed, font, text_color, bg_color, buy_vowel_sound, guessed_letters=None):
     """Handles the buying of a vowel."""
+    if guessed_letters is None:
+        guessed_letters = set()
     if player['score'] < 250:
         display_message(surface, "You don't have enough money to buy a vowel.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
         pygame.display.flip()
@@ -446,24 +506,43 @@ def handle_buy_vowel(surface, player, puzzle, revealed, font, text_color, bg_col
             buy_vowel_sound.play()
         player['score'] -= 250
         display_board(surface, puzzle, revealed, font, text_color, 40, 50, WORD_DISPLAY_X, SCREEN_WIDTH) #show the board
-        guess = get_text_input(surface, "Guess a vowel:", font, text_color, bg_color, (WORD_DISPLAY_X, SCREEN_HEIGHT // 2 + 100), overlap=True, puzzle=puzzle, revealed=revealed)
-        if guess.upper() in VOWELS:
-            num_revealed = reveal_letters(puzzle, revealed, guess)
-            if num_revealed > 0:
-                display_message(surface, f"There are {num_revealed} {guess}'s.", font, GREEN, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
+        while True:
+            guess = get_text_input(
+                surface,
+                "Guess a vowel:",
+                font,
+                text_color,
+                bg_color,
+                (WORD_DISPLAY_X, SCREEN_HEIGHT // 2 + 100),
+                overlap=True,
+                puzzle=puzzle,
+                revealed=revealed,
+                current_player_name=player['name']
+            )
+            guess = guess.upper()
+            if guess in guessed_letters or (guess in [puzzle[i].upper() for i, r in enumerate(revealed) if r]):
+                display_message(surface, "Letter already guessed. Pick another.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 200))
                 pygame.display.flip()
                 time.sleep(2)
-                return True # Indicate success
+                continue
+            if guess in VOWELS:
+                guessed_letters.add(guess)
+                num_revealed = reveal_letters(puzzle, revealed, guess)
+                if num_revealed > 0:
+                    display_message(surface, f"There are {num_revealed} {guess}'s.", font, GREEN, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
+                    pygame.display.flip()
+                    time.sleep(2)
+                    return True # Indicate success
+                else:
+                    display_message(surface, "Sorry, there are no " + guess + "'s.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
+                    pygame.display.flip()
+                    time.sleep(2)
+                    return False
             else:
-                display_message(surface, "Sorry, there are no " + guess + "'s.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
+                display_message(surface, "Invalid guess.  Must be a vowel.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
                 pygame.display.flip()
                 time.sleep(2)
                 return False
-        else:
-            display_message(surface, "Invalid guess.  Must be a vowel.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
-            pygame.display.flip()
-            time.sleep(2)
-            return False
 
 def handle_solve_puzzle(surface, player, puzzle, revealed, font, text_color, bg_color, win_sound):
     """Handles a player's attempt to solve the puzzle."""
@@ -510,6 +589,28 @@ def has_unrevealed_consonants(puzzle, revealed):
             return True
     return False
 
+def show_intro_screen(screen, spin_colors, text_color):
+    """Displays an intro screen with a spinning wheel prop."""
+    angle = 0
+    running = True
+    clock = pygame.time.Clock()
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                exit()
+            if event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
+                running = False
+
+        screen.fill(DARK_PURPLE)
+        display_message(screen, "WHEEL OF FORTUNE", FONT_XXLARGE, text_color, (SCREEN_WIDTH // 2, 180))
+        display_message(screen, "Click or Press Any Key to Start", FONT_LARGE, YELLOW, (SCREEN_WIDTH // 2, SCREEN_HEIGHT - 200))
+        # Draw the spinning wheel prop in the center
+        draw_wheel(screen, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 20), 250, angle, WHEEL_VALUES, spin_colors, text_color)
+        angle = (angle + 3) % 360  # Spin speed
+        pygame.display.flip()
+        clock.tick(60)  # 60 FPS
+
 def main():
     """Main game function."""
     # --- Initialization ---
@@ -543,6 +644,9 @@ def main():
     rect_height = 50
     num_players = 0
 
+    # --- Intro Screen with Spinning Wheel Prop ---
+    show_intro_screen(screen, spin_colors, text_color)
+
     # --- Player Setup ---
     while num_players < 1 or num_players > 3:
         screen.fill(bg_color)
@@ -573,6 +677,7 @@ def main():
 
         # --- Round Loop ---
         round_over = False
+        guessed_letters = set()
         while not round_over:
             screen.fill(bg_color)  # Clear the screen at the start of each turn
             display_message(screen, f"Round {round_num}", FONT_LARGE, text_color, (SCREEN_WIDTH // 2, 50))
@@ -583,7 +688,7 @@ def main():
             if num_players > 2:
                 display_player_info(screen, players[2], FONT_MEDIUM, text_color, (20, 140))  # Player 3 info
 
-            draw_wheel(screen, (SCREEN_WIDTH // 4, SCREEN_HEIGHT // 2), 300, wheel_angle, WHEEL_VALUES, spin_colors, text_color)
+            draw_wheel(screen, (SCREEN_WIDTH // 4, SCREEN_HEIGHT // 2), 370, wheel_angle, WHEEL_VALUES, spin_colors, text_color)
             if not all(revealed):
                 display_board(screen, puzzle, revealed, FONT_MEDIUM, text_color, rect_width, rect_height, WORD_DISPLAY_X, SCREEN_WIDTH) #show the board
             
@@ -611,6 +716,10 @@ def main():
             solve_puzzle_button = pygame.Rect(SCREEN_WIDTH // 2 + 500, SCREEN_HEIGHT * 3 // 4, 210, 50)
             draw_button(screen, solve_puzzle_button, "Solve Puzzle", FONT_MEDIUM, text_color, HIGHLIGHT_COLOR, mouse_pos)
 
+            # --- New Game Button (top right) ---
+            new_game_button = pygame.Rect(SCREEN_WIDTH - 220, 30, 180, 50)
+            draw_button(screen, new_game_button, "New Game", FONT_MEDIUM, text_color, HIGHLIGHT_COLOR, mouse_pos)
+
             pygame.display.flip()
 
             # --- Event Handling ---
@@ -620,10 +729,10 @@ def main():
                     exit()
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     mouse_pos = pygame.mouse.get_pos()
-                    if spin_button.collidepoint(mouse_pos):
-                        wheel_angle = spin_wheel(screen, (SCREEN_WIDTH // 4, SCREEN_HEIGHT // 2), 200, WHEEL_VALUES, wheel_angle, 3, spin_colors, text_color)
+                    if spin_button and spin_button.collidepoint(mouse_pos):
+                        wheel_angle = spin_wheel(screen, (SCREEN_WIDTH // 4, SCREEN_HEIGHT // 2), 370, WHEEL_VALUES, wheel_angle, 3, spin_colors, text_color)
                         spin_value = get_wheel_value(wheel_angle, WHEEL_VALUES)
-                        action, current_player_index = handle_spin_result(screen, current_player, spin_value, puzzle, revealed, FONT_MEDIUM, text_color, players, current_player_index, wheel_sound, bankrupt_sound, lose_turn_sound, category=category)
+                        action, current_player_index = handle_spin_result(screen, current_player, spin_value, puzzle, revealed, FONT_MEDIUM, text_color, players, current_player_index, wheel_sound, bankrupt_sound, lose_turn_sound, category=category, guessed_letters=guessed_letters)
                         if action == 'BANKRUPT' or action == 'LOSE A TURN' or action == 'INCORRECT':
                             current_player_index = switch_player(current_player_index, players)
                             current_player = players[current_player_index]
@@ -631,8 +740,8 @@ def main():
                             pass
                         elif action == 'INVALID':
                             pass
-                    elif buy_vowel_button.collidepoint(mouse_pos):
-                        vowel_bought = handle_buy_vowel(screen, current_player, puzzle, revealed, FONT_MEDIUM, text_color, bg_color, buy_vowel_sound)
+                    elif buy_vowel_button and buy_vowel_button.collidepoint(mouse_pos):
+                        vowel_bought = handle_buy_vowel(screen, current_player, puzzle, revealed, FONT_MEDIUM, text_color, bg_color, buy_vowel_sound, guessed_letters=guessed_letters)
                         if not vowel_bought:
                             current_player_index = switch_player(current_player_index, players)
                             current_player = players[current_player_index]
@@ -640,6 +749,9 @@ def main():
                         solved = handle_solve_puzzle(screen,current_player, puzzle, revealed, FONT_MEDIUM, text_color, bg_color, win_sound)
                         if solved:
                             round_over = True
+                    elif new_game_button.collidepoint(mouse_pos):
+                        main()  # Restart the game
+                        return
 
             # --- Check for puzzle solved after every action ---
             if all(revealed):
@@ -670,7 +782,6 @@ def main():
     time.sleep(5)
 
     pygame.quit()
-
 if __name__ == "__main__":
     pygame.mixer.music.play(-1)  # Loop the music
     main()
