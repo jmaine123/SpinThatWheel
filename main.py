@@ -29,7 +29,8 @@ SCREEN_SIZE = (SCREEN_WIDTH, SCREEN_HEIGHT)
 GAME_DISPLAY_WIDTH = 800
 GAME_DISPLAY_HEIGHT = 600
 GAME_DISPLAY_SIZE = (GAME_DISPLAY_WIDTH, GAME_DISPLAY_HEIGHT)
-GAME_DISPLAY_X = (SCREEN_WIDTH - GAME_DISPLAY_WIDTH) // 2
+# GAME_DISPLAY_X = (SCREEN_WIDTH - GAME_DISPLAY_WIDTH) // 2
+GAME_DISPLAY_X = 100
 GAME_DISPLAY_Y = (SCREEN_HEIGHT - GAME_DISPLAY_HEIGHT) // 2
 
 WORD_DISPLAY_WIDTH = 800
@@ -62,6 +63,8 @@ WHEEL_VALUES = [
     600, 650, 700, 1000, 'BANKRUPT', 'LOSE A TURN'
 ] # More visually appealing order
 
+
+
 # --- Helper Functions ---
 
 def load_sound(filename):
@@ -73,6 +76,19 @@ def load_sound(filename):
         print(f"Error loading sound file {filename}: {e}")
         return None
 
+
+# --- Load Sound Effects ---
+wheel_sound = load_sound("Assets/Wheel-Sound.wav")
+bankrupt_sound = load_sound("Assets/awww-01.wav")
+lose_turn_sound = load_sound("Assets/awww-01.wav")
+win_sound = load_sound("Assets/Crowd_Cheer.wav")
+buy_vowel_sound = load_sound("Assets/bonus.wav")
+wrong_guess_sound = load_sound("Assets/wrong_guess.mp3")
+button_click_sound = load_sound("Assets/button_click.wav")
+button_select_sound = load_sound("Assets/button_select.flac")
+
+last_hovered_button_id = None
+
 def display_message(surface, message, font, color, position, center=True):
     """Displays a text message on the screen."""
     text = font.render(message, True, color)
@@ -83,14 +99,21 @@ def display_message(surface, message, font, color, position, center=True):
         rect.topleft = position
     surface.blit(text, rect)
     
-def draw_button(surface, rect, text, font, text_color, highlight_color, mouse_pos):
-    """Draws a button and highlights it if hovered."""
-    if rect.collidepoint(mouse_pos):
+def draw_button(surface, rect, text, font, text_color, highlight_color, mouse_pos, button_id=None):
+    """Draws a button and highlights it if hovered. Plays sound on hover."""
+    global last_hovered_button_id
+    is_hovered = rect.collidepoint(mouse_pos)
+    if is_hovered:
         text_color = PURPLE
         pygame.draw.rect(surface, highlight_color, rect)
+        if button_id is not None and last_hovered_button_id != button_id:
+            if button_click_sound:
+                button_click_sound.play()
+        last_hovered_button_id = button_id
     else:
-        # text_color = WHITE
         pygame.draw.rect(surface, WHITE, rect, 2)
+        if button_id is not None and last_hovered_button_id == button_id:
+            last_hovered_button_id = None
     display_message(surface, text, font, text_color, rect.center)
 
 
@@ -143,67 +166,6 @@ def get_text_input(surface, prompt, font, text_color, bg_color, input_rect_cente
         surface.blit(text_surface, text_rect)
         pygame.display.flip()
     return input_text
-
-
-# def draw_wheel(surface, center, radius, angle, values, spin_color, text_color):
-#     """Draws the Wheel of Fortune."""
-#     num_slices = len(values)
-#     slice_angle = 360 / num_slices
-#     for i in range(num_slices):
-#         start_angle = i * slice_angle + angle
-#         end_angle = (i + 1) * slice_angle + angle
-#         # Use modulus to cycle through colors
-#         color = spin_color[i % len(spin_color)]
-#         pygame.draw.arc(
-#             surface, color,
-#             (center[0] - radius, center[1] - radius, radius * 2, radius * 2),
-#             math.radians(start_angle), math.radians(end_angle), 50
-#         )
-
-#         # --- Draw a filled sector as the text background ---
-#         inner_r = radius * 0.62  # Inner radius for the sector
-#         outer_r = radius * 0.78  # Outer radius for the sector
-#         num_points = 20  # Number of points to approximate the arc
-
-#         # Points along the outer arc
-#         outer_points = [
-#             (
-#                 center[0] + outer_r * math.cos(math.radians(start_angle + (end_angle - start_angle) * t / num_points)),
-#                 center[1] + outer_r * math.sin(math.radians(start_angle + (end_angle - start_angle) * t / num_points))
-#             )
-#             for t in range(num_points + 1)
-#         ]
-#         # Points along the inner arc (in reverse)
-#         inner_points = [
-#             (
-#                 center[0] + inner_r * math.cos(math.radians(end_angle - (end_angle - start_angle) * t / num_points)),
-#                 center[1] + inner_r * math.sin(math.radians(end_angle - (end_angle - start_angle) * t / num_points))
-#             )
-#             for t in range(num_points + 1)
-#         ]
-#         sector_points = outer_points + inner_points
-
-#         # Draw the sector (semi-transparent black)
-#         sector_surface = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
-#         shifted_points = [
-#             (x - (center[0] - radius), y - (center[1] - radius)) for x, y in sector_points
-#         ]
-#         pygame.draw.polygon(sector_surface, (0, 0, 0, 180), shifted_points)
-#         surface.blit(sector_surface, (center[0] - radius, center[1] - radius))
-
-#         # Calculate the middle angle for the text
-#         text_angle = (start_angle + end_angle) / 2
-#         text_radius = radius * 0.7  # Adjust to position text within the slice
-#         x = center[0] + text_radius * math.cos(math.radians(text_angle))
-#         y = center[1] + text_radius * math.sin(math.radians(text_angle))
-
-#         # Rotate the text
-#         text_surface = FONT_SMALL.render(str(values[i]), True, text_color)
-#         rotated_text = pygame.transform.rotate(text_surface, -text_angle)
-#         text_rect = rotated_text.get_rect(center=(int(x), int(y)))
-
-#         # Draw the text on top of the sector
-#         surface.blit(rotated_text, text_rect)
 
 
 FONT_WHEEL = pygame.font.SysFont(FONT_TYPE, 36, bold=True)
@@ -297,57 +259,104 @@ def draw_wheel(surface, center, radius, angle, values, spin_colors, text_color):
 
 
 def display_board(surface, puzzle, revealed, font, text_color, rect_width, rect_height, starting_x, screen_width):
-    """Displays the puzzle board, wrapping to a new line if the puzzle is too long."""
-    # max_letters_per_line = max((screen_width - 200) // (rect_width + 10), 1)  # 600 for margins
-    max_letters_per_line = max(((starting_x + WORD_DISPLAY_WIDTH) - 200) // (rect_width + 10), 1)  # 600 for margins
+    """Displays the puzzle board to the right of the wheel, wrapping as needed, never splitting words."""
+    margin = 40  # Right margin
+    available_width = screen_width - starting_x - margin
+    max_letters_per_line = max((available_width) // (rect_width + 10), 1)
+
+    # Split puzzle into words, keep track of their indices
+    words = []
+    idx = 0
+    while idx < len(puzzle):
+        if puzzle[idx] == ' ':
+            words.append([(idx, ' ')])
+            idx += 1
+        else:
+            start = idx
+            while idx < len(puzzle) and puzzle[idx] != ' ':
+                idx += 1
+            word = [(i, puzzle[i]) for i in range(start, idx)]
+            words.append(word)
+
     lines = []
     current_line = []
-    for i, char in enumerate(puzzle):
-        current_line.append((i, char))
-        if len(current_line) >= max_letters_per_line and char == ' ':
-            lines.append(current_line)
+    current_length = 0
+    for word in words:
+        word_length = len(word)
+        # +1 for space if not first word and not a space itself
+        extra_space = 1 if current_line and word[0][1] != ' ' else 0
+        if current_length + word_length + extra_space > max_letters_per_line:
+            if current_line:
+                lines.append(current_line)
             current_line = []
+            current_length = 0
+            # If the word itself is longer than the line, just add it (will overflow)
+        if current_line and word[0][1] != ' ':
+            current_line.append((-1, ' '))  # Add a space between words
+            current_length += 1
+        current_line.extend(word)
+        current_length += word_length
     if current_line:
         lines.append(current_line)
 
     total_height = len(lines) * (rect_height + 20)
-    start_y = SCREEN_HEIGHT // 2 - total_height // 2 - 100
+    start_y = SCREEN_HEIGHT // 2 - total_height // 2
 
     for line_num, line in enumerate(lines):
         line_length = len(line)
         board_width = line_length * rect_width + (line_length - 1) * 10  # Space between letters
-        # start_x = (screen_width - board_width) // 2 + 300
         start_x = starting_x
         y = start_y + line_num * (rect_height + 20)
         for j, (i, char) in enumerate(line):
             x = start_x + j * (rect_width + 10)
             rect = pygame.Rect(x, y, rect_width, rect_height)
-            pygame.draw.rect(surface, WHITE, rect, 2)  # White outline for the board slots
-
-            if char.isalpha():  # Only display letters, not spaces or punctuation
-                if revealed[i]:
+            pygame.draw.rect(surface, WHITE, rect, 2)
+            if char.isalpha():
+                if i != -1 and revealed[i]:
                     display_message(surface, char.upper(), font, text_color, rect.center, center=True)
-                else:
-                    pygame.draw.rect(surface, GRAY, rect) #show grayed out if not revealed
+                elif i != -1:
+                    pygame.draw.rect(surface, GRAY, rect)
+            # Optionally, you can skip drawing anything for spaces/punctuation
                     
+
 def choose_category(surface, categories, font, text_color, bg_color):
     """Lets the player choose a category for the puzzle."""
+    global last_hovered_button_id
+    num_columns = 3
+    col_width = SCREEN_WIDTH // num_columns
+    row_height = 50
+    padding_x = 40
+    padding_y = 10
+
     while True:
         surface.fill(bg_color)
-        display_message(surface, "Choose a Category:", font, text_color, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4))
+        display_message(surface, "Choose a Category:", font, text_color, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 6))
 
         mouse_pos = pygame.mouse.get_pos()
         HIGHLIGHT_COLOR = (255, 215, 0)  # Gold/yellow highlight
 
-        for i, category in enumerate(categories):
-            y_pos = SCREEN_HEIGHT // 3 + i * 50
-            rect = pygame.Rect(SCREEN_WIDTH // 4, y_pos, SCREEN_WIDTH // 2, 40)
+        hovered_category_id = None
+
+        for idx, category in enumerate(categories):
+            col = idx % num_columns
+            row = idx // num_columns
+            x = col * col_width + padding_x
+            y = SCREEN_HEIGHT // 4 + row * (row_height + padding_y)
+            rect = pygame.Rect(x, y, col_width - 2 * padding_x, row_height)
+            category_id = f"category_{idx}"
             if rect.collidepoint(mouse_pos):
                 pygame.draw.rect(surface, HIGHLIGHT_COLOR, rect)
                 display_message(surface, category, font, PURPLE, rect.center, center=True)
+                hovered_category_id = category_id
             else:
                 pygame.draw.rect(surface, WHITE, rect, 2)
                 display_message(surface, category, font, text_color, rect.center, center=True)
+
+        # Play sound only when hover state changes
+        if hovered_category_id != last_hovered_button_id and hovered_category_id is not None:
+            if button_click_sound:
+                button_click_sound.play()
+        last_hovered_button_id = hovered_category_id
 
         pygame.display.flip()
 
@@ -357,10 +366,14 @@ def choose_category(surface, categories, font, text_color, bg_color):
                 exit()
             if event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_pos = pygame.mouse.get_pos()
-                for i, category in enumerate(categories):
-                    y_pos = SCREEN_HEIGHT // 3 + i * 50
-                    rect = pygame.Rect(SCREEN_WIDTH // 4, y_pos, SCREEN_WIDTH // 2, 40)
+                for idx, category in enumerate(categories):
+                    col = idx % num_columns
+                    row = idx // num_columns
+                    x = col * col_width + padding_x
+                    y = SCREEN_HEIGHT // 4 + row * (row_height + padding_y)
+                    rect = pygame.Rect(x, y, col_width - 2 * padding_x, row_height)
                     if rect.collidepoint(mouse_pos):
+                        button_select_sound.play()  # Play sound on selection
                         return category
 
 def reveal_letters(puzzle, revealed, guess):
@@ -400,6 +413,11 @@ def spin_wheel(surface, center, radius, values, angle, spin_duration, spin_color
     """Simulates the spinning of the wheel."""
     start_time = time.time()
     current_angle = angle
+
+    # Play the wheel sound as the wheel spins
+    if wheel_sound:
+        wheel_sound.play(-1)  # Loop the sound
+
     while time.time() - start_time < spin_duration:
         for event in pygame.event.get():  # Handle events during spin
             if event.type == pygame.QUIT:
@@ -412,6 +430,11 @@ def spin_wheel(surface, center, radius, values, angle, spin_duration, spin_color
         surface.fill(DARK_PURPLE)  # Clear the screen
         draw_wheel(surface, center, radius, current_angle, values, spin_color, text_color)
         pygame.display.flip()
+
+    # Stop the wheel sound after spinning
+    if wheel_sound:
+        wheel_sound.stop()
+
     return current_angle % 360  # Return the final angle
 
 def get_wheel_value(angle, values):
@@ -522,6 +545,7 @@ def handle_buy_vowel(surface, player, puzzle, revealed, font, text_color, bg_col
             guess = guess.upper()
             if guess in guessed_letters or (guess in [puzzle[i].upper() for i, r in enumerate(revealed) if r]):
                 display_message(surface, "Letter already guessed. Pick another.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 200))
+                wrong_guess_sound.play()
                 pygame.display.flip()
                 time.sleep(2)
                 continue
@@ -535,20 +559,20 @@ def handle_buy_vowel(surface, player, puzzle, revealed, font, text_color, bg_col
                     return True # Indicate success
                 else:
                     display_message(surface, "Sorry, there are no " + guess + "'s.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
+                    wrong_guess_sound.play()
                     pygame.display.flip()
                     time.sleep(2)
                     return False
             else:
                 display_message(surface, "Invalid guess.  Must be a vowel.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
+                wrong_guess_sound.play()
                 pygame.display.flip()
                 time.sleep(2)
                 return False
 
-def handle_solve_puzzle(surface, player, puzzle, revealed, font, text_color, bg_color, win_sound):
+def handle_solve_puzzle(surface, player, puzzle, revealed, font, text_color, bg_color):
     """Handles a player's attempt to solve the puzzle."""
-    # surface.fill(bg_color)
-    # display_board(surface, puzzle, revealed, font, text_color, 40, 50, SCREEN_WIDTH) #show the board
-    # pygame.display.update()
+
     guess = get_text_input(surface, "Enter your solution:", font, text_color, bg_color, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2), overlap=True, puzzle=puzzle, revealed=revealed)
     if guess.upper() == puzzle.upper():
         if win_sound:
@@ -562,6 +586,7 @@ def handle_solve_puzzle(surface, player, puzzle, revealed, font, text_color, bg_
         return True
     else:
         display_message(surface, "That is not the correct solution.", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 40))
+        wrong_guess_sound.play()
         pygame.display.flip()
         time.sleep(2)
         return False
@@ -600,6 +625,8 @@ def show_intro_screen(screen, spin_colors, text_color):
                 pygame.quit()
                 exit()
             if event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
+                # Start the game when a key is pressed or mouse button is clicked
+                win_sound.play()
                 running = False
 
         screen.fill(DARK_PURPLE)
@@ -611,31 +638,34 @@ def show_intro_screen(screen, spin_colors, text_color):
         pygame.display.flip()
         clock.tick(60)  # 60 FPS
 
+
+
 def main():
     """Main game function."""
     # --- Initialization ---
     screen = pygame.display.set_mode(SCREEN_SIZE)
     pygame.display.set_caption("Wheel of Fortune")
 
-    # --- Sound Effects ---
-    # Load sound effects (replace with actual file paths if needed)
-    wheel_sound = load_sound("Assets/Wheel-Sound.wav")  # Replace with your sound file
-    bankrupt_sound = load_sound("Assets/awww-01.wav")  # Replace with your sound file
-    lose_turn_sound = load_sound("Assets/awww-01.wav")  # Replace with your sound file
-    win_sound = load_sound("Assets/Crowd_Cheer.wav")  # Replace with your sound file
-    buy_vowel_sound = load_sound("Assets/bonus.wav") #sound for buying a vowel
 
     # --- Game Data ---
-    categories = ["Food & Drink", "Movies", "Places", "Music", "Science", "Literature", "Cartoons", "Wine"]
+    categories = ["Food & Drink", "Movies", "Places", "Music", "Science", "Literature", "Cartoons", "Wine", "US States", "US Presidents", "Poems", "Sports", "Video Games", "Famous People", "TV Shows", "Animals"]
     puzzles = {
         "Food & Drink": ["Pizza", "Hamburger", "Sushi", "Chocolate Cake", "Coffee", "Spaghetti", "Ice Cream", "Tacos", "Salad", "Pasta", "Sandwich", "Cereal", "Donut", "Steak", "Fried Chicken", "Watermelon", "Cheeseburger", "Milkshake", "Pancakes", "French Fries"],
         "Movies": ["Star Wars", "The Matrix", "Pulp Fiction", "The Dark Knight", "Avatar", "Jurassic Park", "Frozen", "Inception", "Titanic", "The Godfather", "Harry Potter", "The Lion King", "The Avengers", "Finding Nemo", "Toy Story"],
-        "Places": ["Paris", "New York", "Tokyo", "London", "Rome", "Barcelona", "Berlin", "Dubai", "Amsterdam", "Rio de Janeiro", "Los Angeles", "Beijing", "New Delhi", "Moscow", "Sydney", "Singapore"],
-        "Music": ["Jazz", "Rock", "Classical", "Hip Hop", "Country"],
+        "Places": ["Paris", "New York", "Tokyo", "London", "Rome", "Barcelona", "Berlin", "Dubai", "Amsterdam", "Rio de Janeiro", "Los Angeles", "Beijing", "New Delhi", "Moscow", "Sydney", "Singapore", "Bangkok", "Istanbul", "Cairo", "Cape Town", "Buenos Aires", "Seoul", "Hong Kong", "Toronto", "Mexico City"],
+        "Music": ["Jazz", "Rock", "Classical", "Hip Hop", "Country", "Pop", "Reggae", "Blues", "Electronic", "Folk", "Metal", "R&B", "Disco", "Salsa", "Gospel", "Opera", "K Pop", "Indie", "Punk", "Ska", "Techno", "House", "Trance", "Dubstep", "Ambient", "Bluegrass", "Swing", "Bossa Nova"],
         "Science": ["Gravity", "Relativity", "Photosynthesis", "Black Hole", "DNA", "Atom", "Molecule", "Evolution", "Quantum Mechanics", "Thermodynamics", "Electromagnetism", "Cell Biology", "Genetics", "Astrophysics", "Chemistry"],
         "Literature": ["Hamlet", "Pride and Prejudice", "The Great Gatsby", "To Kill a Mockingbird", "The Catcher in the Rye", "The Odyssey", "War and Peace", "Moby", "Great Expectations", "The Brothers Karamazov", "Crime and Punishment", "The Picture of Dorian Gray", "Brave New World", "The Grapes of Wrath", "The Hobbit"],
         "Cartoons": ["SpongeBob SquarePants", "The Simpsons", "Looney Tunes", "Tom and Jerry", "Scooby Doo", "Avatar The Last Airbender", "Teen Titans", "Adventure Time", "Gravity Falls", "Futurama", "Rick and Morty", "Johnny Bravo", "The Flintstones", "The Jetsons", "DuckTales", "Squidward", "Popeye", "Dora the Explorer", "Bluey", "Peppa Pig", "Little Einsteins", "Arthur", "Hey Arnold!", "The Magic School Bus", "The Fairly OddParents", "Kim Possible", "Avatar: The Legend of Korra", "The Amazing World of Gumball", "Steven Universe"],
-        "Wine":["Cabernet Sauvignon", "Chardonnay", "Merlot", "Pinot Noir", "Sauvignon Blanc", "Syrah", "Zinfandel", "Riesling", "Malbec", "Tempranillo", "Grenache", "Shiraz", "Moscato", "Prosecco", "Champagne"]
+        "Wine":["Cabernet Sauvignon", "Chardonnay", "Merlot", "Pinot Noir", "Sauvignon Blanc", "Syrah", "Zinfandel", "Riesling", "Malbec", "Tempranillo", "Grenache", "Shiraz", "Moscato", "Prosecco", "Champagne"],
+        "US States": ["California", "Texas", "Florida", "New York", "Illinois", "Pennsylvania", "Ohio", "Georgia", "North Carolina", "Michigan", "New Jersey", "Virginia", "Washington", "Arizona", "Massachusetts"],
+        "US Presidents": ["George Washington", "Thomas Jefferson", "Abraham Lincoln", "Theodore Roosevelt", "Franklin D. Roosevelt", "John F. Kennedy", "Richard Nixon", "Ronald Reagan", "Bill Clinton", "Barack Obama", "Donald Trump", "Joe Biden", "Andrew Jackson", "James Madison", "James Monroe", "John Adams", "John Quincy Adams", "Martin Van Buren", "Ulysses S. Grant", "Woodrow Wilson", "Harry S. Truman", "Lyndon B. Johnson", "Gerald Ford", "Jimmy Carter", "George H.W. Bush", "George W. Bush", "Calvin Coolidge", "Warren G. Harding", "Herbert Hoover", "Chester A. Arthur", "Benjamin Harrison", "William Howard Taft", "Millard Fillmore", "James Buchanan", "Andrew Johnson", "Martin Van Buren"],
+        "Poems": ["The Road Not Taken", "Stopping by Woods on a Snowy Evening", "I Wandered Lonely as a Cloud", "Ode to a Nightingale", "The Raven", "Sonnet 18", "Do Not Go Gentle into That Good Night", "Invictus", "The Waste Land", "Daffodils", "The Love Song of J Alfred Prufrock", "Still I Rise", "The Charge of the Light Brigade", "The Tyger", "Ozymandias", "The Second Coming", "Annabel Lee", "A Dream Within a Dream", "The Bells", "The Ballad of Reading Gaol", "The Song of Hiawatha", "Kubla Khan", "The Jabberwocky", "The Lady of Shalott", "The Prelude", "The Canterbury Tales"],
+        "Famous People": ["Albert Einstein", "Marie Curie", "Isaac Newton", "Leonardo da Vinci", "Galileo Galilei", "Charles Darwin", "Nikola Tesla", "Thomas Edison", "Stephen Hawking", "Ada Lovelace", "Jane Goodall", "Mahatma Gandhi", "Nelson Mandela", "Martin Luther King Jr.", "Winston Churchill"],
+        "Sports": ["Soccer", "Basketball", "Baseball", "Football", "Tennis", "Golf", "Hockey", "Cricket", "Rugby", "Volleyball", "Swimming", "Boxing", "Cycling", "Gymnastics", "Table Tennis"],
+        "Video Games": ["Super Mario Bros", "The Legend of Zelda", "Minecraft", "Fortnite", "Call of Duty", "Overwatch", "World of Warcraft", "The Elder Scrolls V: Skyrim", "Final Fantasy VII", "Pokémon Red and Blue", "Tetris", "Pacman", "Street Fighter II", "The Legend of Zelda: Ocarina of Time", "Half Life 2", "Portal", "Dark Souls", "The Witcher 3: Wild Hunt", "Red Dead Redemption 2", "Grand Theft Auto V"],
+        "TV Shows": ["Friends", "Breaking Bad", "Game of Thrones", "The Office", "Stranger Things", "The Simpsons", "The Big Bang Theory", "The Walking Dead", "Sherlock", "Black Mirror", "The Crown", "Westworld", "Better Call Saul", "The Mandalorian", "The Sopranos"],
+        "Animals": ["Elephant", "Dolphin", "Giraffe", "Kangaroo", "Penguin", "Lion", "Tiger", "Bear", "Zebra", "Panda", "Koala", "Cheetah", "Hippopotamus", "Rhinoceros", "Alligator", "Crocodile", "Octopus", "Jellyfish", "Starfish", "Seahorse", "Crab", "Lobster", "Shrimp", "Clownfish", "Angelfish", "Goldfish", "Betta Fish", "Turtle", "Tortoise", "Snail", "Slug", "Worm", "Ant", "Bee", "Butterfly", "Moth", "Spider", "Scorpion", "Centipede", "Millipede", "Grasshopper", "Cricket", "Dragonfly", "Ladybug", "Firefly", "Praying Mantis", "Cockroach", "Termite", "Flea", "Tick", "Mosquito", "Fly", "Wasp", "Hornet", "Beetle", "Weevil", "Stag Beetle", "Ladybird Beetle", "Dung Beetle", "Japanese Beetle", "Rhinoceros Beetle", "Goliath Beetle", "Atlas Beetle", "Fire Ant", "Carpenter Ant", "Leafcutter Ant", "Army Ant", "Bullet Ant", "Harvester Ant", "Sugar Ant", "Pharaoh Ant", "Thief Ant", "Pavement Ant", "Odorous House Ant", "Little Black Ant", "Bigheaded Ant", "Crazy Ant", "Ghost Ant", "Red Imported Fire Ant", "Southern Fire Ant", "Black Carpenter Ant", "Red Carpenter Ant", "Velvet Ant", "Cow Killer Ant"]
     }
     spin_colors = [RED, GREEN, BLUE, YELLOW, RED, GREEN, BLUE, YELLOW] # Color list for wheel
     text_color = WHITE
@@ -703,22 +733,22 @@ def main():
 
             if has_unrevealed_vowels(puzzle, revealed):
                 buy_vowel_button = pygame.Rect(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT * 3 // 4, 300, 50)
-                draw_button(screen, buy_vowel_button, "Buy Vowel (-$250)", FONT_MEDIUM, text_color, HIGHLIGHT_COLOR, mouse_pos)
+                draw_button(screen, buy_vowel_button, "Buy Vowel (-$250)", FONT_MEDIUM, text_color, HIGHLIGHT_COLOR, mouse_pos, button_id="buy_vowel")
             else:
                 buy_vowel_button = None
 
             if has_unrevealed_consonants(puzzle, revealed):
                 spin_button = pygame.Rect(SCREEN_WIDTH // 2 + 250, SCREEN_HEIGHT * 3 // 4, 200, 50)
-                draw_button(screen, spin_button, "Spin Wheel", FONT_MEDIUM, text_color, HIGHLIGHT_COLOR, mouse_pos)
+                draw_button(screen, spin_button, "Spin Wheel", FONT_MEDIUM, text_color, HIGHLIGHT_COLOR, mouse_pos, button_id="spin")
             else:
                 spin_button = None
 
             solve_puzzle_button = pygame.Rect(SCREEN_WIDTH // 2 + 500, SCREEN_HEIGHT * 3 // 4, 210, 50)
-            draw_button(screen, solve_puzzle_button, "Solve Puzzle", FONT_MEDIUM, text_color, HIGHLIGHT_COLOR, mouse_pos)
+            draw_button(screen, solve_puzzle_button, "Solve Puzzle", FONT_MEDIUM, text_color, HIGHLIGHT_COLOR, mouse_pos, button_id="solve")
 
             # --- New Game Button (top right) ---
             new_game_button = pygame.Rect(SCREEN_WIDTH - 220, 30, 180, 50)
-            draw_button(screen, new_game_button, "New Game", FONT_MEDIUM, text_color, HIGHLIGHT_COLOR, mouse_pos)
+            draw_button(screen, new_game_button, "New Game", FONT_MEDIUM, text_color, HIGHLIGHT_COLOR, mouse_pos, button_id="new_game")
 
             pygame.display.flip()
 
@@ -730,6 +760,7 @@ def main():
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     mouse_pos = pygame.mouse.get_pos()
                     if spin_button and spin_button.collidepoint(mouse_pos):
+                        button_select_sound.play()  # Play sound on selection
                         wheel_angle = spin_wheel(screen, (SCREEN_WIDTH // 4, SCREEN_HEIGHT // 2), 370, WHEEL_VALUES, wheel_angle, 3, spin_colors, text_color)
                         spin_value = get_wheel_value(wheel_angle, WHEEL_VALUES)
                         action, current_player_index = handle_spin_result(screen, current_player, spin_value, puzzle, revealed, FONT_MEDIUM, text_color, players, current_player_index, wheel_sound, bankrupt_sound, lose_turn_sound, category=category, guessed_letters=guessed_letters)
@@ -741,15 +772,18 @@ def main():
                         elif action == 'INVALID':
                             pass
                     elif buy_vowel_button and buy_vowel_button.collidepoint(mouse_pos):
+                        button_select_sound.play()  # Play sound on selection
                         vowel_bought = handle_buy_vowel(screen, current_player, puzzle, revealed, FONT_MEDIUM, text_color, bg_color, buy_vowel_sound, guessed_letters=guessed_letters)
                         if not vowel_bought:
                             current_player_index = switch_player(current_player_index, players)
                             current_player = players[current_player_index]
                     elif solve_puzzle_button.collidepoint(mouse_pos):
-                        solved = handle_solve_puzzle(screen,current_player, puzzle, revealed, FONT_MEDIUM, text_color, bg_color, win_sound)
+                        button_select_sound.play()  # Play sound on selection
+                        solved = handle_solve_puzzle(screen,current_player, puzzle, revealed, FONT_MEDIUM, text_color, bg_color)
                         if solved:
                             round_over = True
                     elif new_game_button.collidepoint(mouse_pos):
+                        button_select_sound.play()
                         main()  # Restart the game
                         return
 
