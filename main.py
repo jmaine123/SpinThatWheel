@@ -89,6 +89,8 @@ button_select_sound = load_sound("Assets/button_select.flac")
 
 last_hovered_button_id = None
 
+
+
 def display_message(surface, message, font, color, position, center=True):
     """Displays a text message on the screen."""
     text = font.render(message, True, color)
@@ -115,6 +117,25 @@ def draw_button(surface, rect, text, font, text_color, highlight_color, mouse_po
         if button_id is not None and last_hovered_button_id == button_id:
             last_hovered_button_id = None
     display_message(surface, text, font, text_color, rect.center)
+    
+    
+def draw_info_section(surface, x, y, w, h, player_name, player_score, spin_value=None, font=FONT_MEDIUM, category=None):
+    """Draws the info section with background and game info."""
+    bg_color = (30, 30, 60)
+    border_radius = 20
+    pygame.draw.rect(surface, bg_color, (x, y, w, h), border_radius=border_radius)
+    pygame.draw.rect(surface, WHITE, (x, y, w, h), 3, border_radius=border_radius)
+    info_y = y + 20
+    if category is None:
+        category = "No Category Selected"
+    display_message(surface,"Category: " + category, FONT_MEDIUM, WHITE, (x + 30,  info_y), center=False)
+    info_y +=45
+    display_message(surface, f"Player Turn: {player_name}", font, YELLOW, (x + 30, info_y), center=False)
+    info_y += 45
+    if spin_value is not None:
+        display_message(surface, f"Spin Value: {spin_value}", font, WHITE, (x + 30, info_y), center=False)
+        info_y += 45
+    display_message(surface, f"Score: ${player_score}", font, GREEN, (x + 30, info_y), center=False)
 
 
 
@@ -124,12 +145,15 @@ def get_text_input(surface, prompt, font, text_color, bg_color, input_rect_cente
     active = True
 
     # Dynamically set input box width based on puzzle width
-    if puzzle:
-        puzzle_surface = font.render(puzzle, True, text_color)
-        input_box_width = puzzle_surface.get_width() + 40  # Add some padding
-        input_box_width = max(200, min(input_box_width, SCREEN_WIDTH - 100))  # Clamp to reasonable range
+    if "consonant" in prompt.lower() or "vowel" in prompt.lower():
+        input_box_width = 120  # Small box for single letter
     else:
-        input_box_width = 200
+        if puzzle:
+            puzzle_surface = font.render(puzzle, True, text_color)
+            input_box_width = puzzle_surface.get_width() + 40  # Add some padding
+            input_box_width = max(200, min(input_box_width, SCREEN_WIDTH - 100))  # Clamp to reasonable range
+        else:
+            input_box_width = 200
 
     input_rect = pygame.Rect(0, 0, input_box_width, 50)
     input_rect.center = input_rect_center  # Center the input rect
@@ -151,14 +175,13 @@ def get_text_input(surface, prompt, font, text_color, bg_color, input_rect_cente
         if overlap and len(puzzle) > 0:
             display_board(surface, puzzle, revealed, font, text_color, 40, 50, WORD_DISPLAY_X, SCREEN_WIDTH)
             display_message(surface, f'WHEEL OF FORTUNE', FONT_XXLARGE, text_color, (SCREEN_WIDTH // 2, 100))
-            display_message(surface, f"Category: {category}", font, text_color, (GAME_DISPLAY_X, SCREEN_HEIGHT // 4))
-            display_message(surface, f"Spin Value: {spin_value}", FONT_MEDIUM, text_color, (GAME_DISPLAY_X, SCREEN_HEIGHT // 4 + 50))
-            # Show current player under spin value
-            if current_player_name:
-                display_message(surface, f"Current Player: {current_player_name}", font, text_color, (GAME_DISPLAY_X, SCREEN_HEIGHT // 4 + 90))
-        elif overlap and len(puzzle) == 0:
-            display_message(surface, f'WHEEL OF FORTUNE', FONT_XXLARGE, text_color, (SCREEN_WIDTH // 2, 100))
-
+            # Info section (left)
+            info_x = GAME_DISPLAY_X
+            info_y = 135
+            info_w = 465
+            info_h = GAME_DISPLAY_HEIGHT - 200
+            draw_info_section(surface, info_x, info_y, info_w, info_h,
+                              current_player_name, 0, spin_value, font=FONT_MEDIUM, category=category)
         display_message(surface, prompt, font, text_color, (input_rect.centerx, input_rect.y - 30))
         pygame.draw.rect(surface, text_color, input_rect, 2)
         text_surface = font.render(input_text, True, text_color)
@@ -453,6 +476,7 @@ def handle_spin_result(surface, player, spin_value, puzzle, revealed, font, text
     if spin_value == "BANKRUPT":
         if bankrupt_sound:
             bankrupt_sound.play()
+        player['score'] = 0  # Set current player's round score to 0
         surface.fill(BLACK)  # Draw black background
         display_message(surface, "BANKRUPT!", font, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
         pygame.display.flip()
@@ -480,7 +504,7 @@ def handle_spin_result(surface, player, spin_value, puzzle, revealed, font, text
                 font,
                 text_color,
                 DARK_PURPLE,
-                (WORD_DISPLAY_X, SCREEN_HEIGHT // 2 + 100),
+                (GAME_DISPLAY_X + 100, SCREEN_HEIGHT // 2 + 200),
                 overlap=True,
                 puzzle=puzzle,
                 revealed=revealed,
@@ -536,7 +560,7 @@ def handle_buy_vowel(surface, player, puzzle, revealed, font, text_color, bg_col
                 font,
                 text_color,
                 bg_color,
-                (WORD_DISPLAY_X, SCREEN_HEIGHT // 2 + 100),
+                (GAME_DISPLAY_X + 100, SCREEN_HEIGHT // 2 + 100),
                 overlap=True,
                 puzzle=puzzle,
                 revealed=revealed,
@@ -573,7 +597,7 @@ def handle_buy_vowel(surface, player, puzzle, revealed, font, text_color, bg_col
 def handle_solve_puzzle(surface, player, puzzle, revealed, font, text_color, bg_color):
     """Handles a player's attempt to solve the puzzle."""
 
-    guess = get_text_input(surface, "Enter your solution:", font, text_color, bg_color, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2), overlap=True, puzzle=puzzle, revealed=revealed)
+    guess = get_text_input(surface, "Enter your solution:", font, text_color, bg_color, (SCREEN_WIDTH//2, SCREEN_HEIGHT // 2 + 300), overlap=True, puzzle=puzzle, revealed=revealed)
     if guess.upper() == puzzle.upper():
         if win_sound:
             win_sound.play()
@@ -648,7 +672,7 @@ def main():
 
 
     # --- Game Data ---
-    categories = ["Food & Drink", "Movies", "Places", "Music", "Science", "Literature", "Cartoons", "Wine", "US States", "US Presidents", "Poems", "Sports", "Video Games", "Famous People", "TV Shows", "Animals"]
+    categories = ["Food & Drink", "Movies", "Places", "Music", "Science", "Literature", "Cartoons", "Wine", "US States", "US Presidents", "Poems", "Sports", "Video Games", "Famous People", "TV Shows", "Animals", "Fruits","Vegetables", "Countries", "Famous Landmarks", "Famous Sayings", "Before and After", "Things people say"]
     puzzles = {
         "Food & Drink": ["Pizza", "Hamburger", "Sushi", "Chocolate Cake", "Coffee", "Spaghetti", "Ice Cream", "Tacos", "Salad", "Pasta", "Sandwich", "Cereal", "Donut", "Steak", "Fried Chicken", "Watermelon", "Cheeseburger", "Milkshake", "Pancakes", "French Fries"],
         "Movies": ["Star Wars", "The Matrix", "Pulp Fiction", "The Dark Knight", "Avatar", "Jurassic Park", "Frozen", "Inception", "Titanic", "The Godfather", "Harry Potter", "The Lion King", "The Avengers", "Finding Nemo", "Toy Story"],
@@ -663,9 +687,16 @@ def main():
         "Poems": ["The Road Not Taken", "Stopping by Woods on a Snowy Evening", "I Wandered Lonely as a Cloud", "Ode to a Nightingale", "The Raven", "Sonnet 18", "Do Not Go Gentle into That Good Night", "Invictus", "The Waste Land", "Daffodils", "The Love Song of J Alfred Prufrock", "Still I Rise", "The Charge of the Light Brigade", "The Tyger", "Ozymandias", "The Second Coming", "Annabel Lee", "A Dream Within a Dream", "The Bells", "The Ballad of Reading Gaol", "The Song of Hiawatha", "Kubla Khan", "The Jabberwocky", "The Lady of Shalott", "The Prelude", "The Canterbury Tales"],
         "Famous People": ["Albert Einstein", "Marie Curie", "Isaac Newton", "Leonardo da Vinci", "Galileo Galilei", "Charles Darwin", "Nikola Tesla", "Thomas Edison", "Stephen Hawking", "Ada Lovelace", "Jane Goodall", "Mahatma Gandhi", "Nelson Mandela", "Martin Luther King Jr.", "Winston Churchill"],
         "Sports": ["Soccer", "Basketball", "Baseball", "Football", "Tennis", "Golf", "Hockey", "Cricket", "Rugby", "Volleyball", "Swimming", "Boxing", "Cycling", "Gymnastics", "Table Tennis"],
-        "Video Games": ["Super Mario Bros", "The Legend of Zelda", "Minecraft", "Fortnite", "Call of Duty", "Overwatch", "World of Warcraft", "The Elder Scrolls V: Skyrim", "Final Fantasy VII", "Pokémon Red and Blue", "Tetris", "Pacman", "Street Fighter II", "The Legend of Zelda: Ocarina of Time", "Half Life 2", "Portal", "Dark Souls", "The Witcher 3: Wild Hunt", "Red Dead Redemption 2", "Grand Theft Auto V"],
+        "Video Games": ["Super Mario Bros", "The Legend of Zelda", "Minecraft", "Fortnite", "Call of Duty", "Overwatch", "World of Warcraft", "The Elder Scrolls V Skyrim", "Final Fantasy VII", "Pokémon Red and Blue", "Tetris", "Pacman", "Street Fighter II", "The Legend of Zelda: Ocarina of Time", "Half Life", "Portal", "Dark Souls", "The Witcher", "Red Dead Redemption", "Grand Theft Auto V", "Apex Legends", "Among Us", "Animal Crossing New Horizons", "Hades", "Stardew Valley", "Celeste", "Hollow Knight", "Undertale"],
         "TV Shows": ["Friends", "Breaking Bad", "Game of Thrones", "The Office", "Stranger Things", "The Simpsons", "The Big Bang Theory", "The Walking Dead", "Sherlock", "Black Mirror", "The Crown", "Westworld", "Better Call Saul", "The Mandalorian", "The Sopranos"],
-        "Animals": ["Elephant", "Dolphin", "Giraffe", "Kangaroo", "Penguin", "Lion", "Tiger", "Bear", "Zebra", "Panda", "Koala", "Cheetah", "Hippopotamus", "Rhinoceros", "Alligator", "Crocodile", "Octopus", "Jellyfish", "Starfish", "Seahorse", "Crab", "Lobster", "Shrimp", "Clownfish", "Angelfish", "Goldfish", "Betta Fish", "Turtle", "Tortoise", "Snail", "Slug", "Worm", "Ant", "Bee", "Butterfly", "Moth", "Spider", "Scorpion", "Centipede", "Millipede", "Grasshopper", "Cricket", "Dragonfly", "Ladybug", "Firefly", "Praying Mantis", "Cockroach", "Termite", "Flea", "Tick", "Mosquito", "Fly", "Wasp", "Hornet", "Beetle", "Weevil", "Stag Beetle", "Ladybird Beetle", "Dung Beetle", "Japanese Beetle", "Rhinoceros Beetle", "Goliath Beetle", "Atlas Beetle", "Fire Ant", "Carpenter Ant", "Leafcutter Ant", "Army Ant", "Bullet Ant", "Harvester Ant", "Sugar Ant", "Pharaoh Ant", "Thief Ant", "Pavement Ant", "Odorous House Ant", "Little Black Ant", "Bigheaded Ant", "Crazy Ant", "Ghost Ant", "Red Imported Fire Ant", "Southern Fire Ant", "Black Carpenter Ant", "Red Carpenter Ant", "Velvet Ant", "Cow Killer Ant"]
+        "Animals": ["Elephant", "Dolphin", "Giraffe", "Kangaroo", "Penguin", "Lion", "Tiger", "Bear", "Zebra", "Panda", "Koala", "Cheetah", "Hippopotamus", "Rhinoceros", "Alligator", "Crocodile", "Octopus", "Jellyfish", "Starfish", "Seahorse", "Crab", "Lobster", "Shrimp", "Clownfish", "Angelfish", "Goldfish", "Betta Fish", "Turtle", "Tortoise", "Snail", "Slug", "Worm", "Ant", "Bee", "Butterfly", "Moth", "Spider", "Scorpion", "Centipede", "Millipede", "Grasshopper", "Cricket", "Dragonfly", "Ladybug", "Firefly", "Praying Mantis", "Cockroach", "Termite", "Flea", "Tick", "Mosquito", "Fly", "Wasp", "Hornet", "Beetle", "Weevil", "Stag Beetle", "Ladybird Beetle", "Dung Beetle", "Japanese Beetle", "Rhinoceros Beetle", "Goliath Beetle", "Atlas Beetle", "Fire Ant", "Carpenter Ant", "Leafcutter Ant", "Army Ant", "Bullet Ant", "Harvester Ant", "Sugar Ant", "Pharaoh Ant", "Thief Ant", "Pavement Ant", "Odorous House Ant", "Little Black Ant", "Bigheaded Ant", "Crazy Ant", "Ghost Ant", "Red Imported Fire Ant", "Southern Fire Ant", "Black Carpenter Ant", "Red Carpenter Ant", "Velvet Ant", "Cow Killer Ant"],
+        "Fruits": ["Apple", "Banana", "Orange", "Grapes", "Strawberry", "Blueberry", "Raspberry", "Pineapple", "Mango", "Peach", "Watermelon", "Cantaloupe", "Honeydew", "Kiwi", "Papaya", "Pomegranate", "Plum", "Cherry", "Apricot", "Fig", "Date", "Coconut", "Lemon", "Lime", "Tangerine", "Grapefruit", "Passion Fruit", "Dragon Fruit", "Star Fruit", "Lychee", "Guava", "Persimmon", "Cranberry", "Blackberry", "Clementine", "Nectarine", "Quince", "Rhubarb", "Tamarind", "Jackfruit", "Durian", "Sapodilla", "Soursop", "Longan", "Mangosteen", "Jabuticaba", "Açaí Berry", "Elderberry"],
+        "Vegetables": ["Carrot", "Broccoli", "Spinach", "Potato", "Tomato", "Cucumber", "Bell Pepper", "Onion", "Garlic", "Lettuce", "Cabbage", "Cauliflower", "Zucchini", "Eggplant", "Radish", "Beetroot", "Pumpkin", "Squash", "Sweet Potato", "Asparagus", "Artichoke", "Brussels Sprouts", "Celery", "Kale", "Swiss Chard"],
+        "Countries": ["United States", "Canada", "Mexico", "Brazil", "Argentina", "United Kingdom", "France", "Germany", "Italy", "Spain", "Portugal", "Russia", "China", "Japan", "India", "Australia", "South Africa", "Egypt", "Nigeria", "Kenya", "Ghana", "Morocco", "Tunisia", "Algeria"],
+        "Famous Landmarks": ["Eiffel Tower", "Great Wall of China", "Statue of Liberty", "Taj Mahal", "Colosseum", "Pyramids of Giza", "Machu Picchu", "Sydney Opera House", "Big Ben", "Christ the Redeemer", "Stonehenge", "Acropolis of Athens", "Petra", "Angkor Wat", "Burj Khalifa"],
+        "Famous Slogans": ["Just Do It", "Think Different", "I'm Lovin' It", "Have It Your Way", "The Ultimate Driving Machine", "Because You're Worth It", "Melts in Your Mouth, Not in Your Hands", "Taste the Rainbow", "The Happiest Place on Earth", "Finger Lickin' Good", "Expect More. Pay Less.", "Save Money. Live Better.", "Eat Fresh", "The Quicker Picker Upper", "Can You Hear Me Now?"],
+        "Before and After": ["Bread and Butter", "Salt and Pepper", "Peanut Butter and Jelly", "Fish and Chips", "Macaroni and Cheese", "Bacon and Eggs", "Milk and Cookies", "Spaghetti and Meatballs", "Coffee and Donuts", "Wine and Cheese", "Tea and Biscuits", "Ham and Cheese", "Chicken and Waffles", "Pasta and Sauce", "Rice and Beans", "Chips and Salsa", "Burger and Fries", "Pizza and Beer", "Tacos and Guacamole", "Hot Dog and Mustard", "Ice Cream and Cake", "Popcorn and Movie", "Soup and Sandwich", "Salad and Dressing", "Steak and Potatoes", "Cereal and Milk", "Bagel and Cream Cheese", "Pancakes and Syrup"],
+        "Things people say": ["Break a leg", "Bite the bullet", "Burn the midnight oil", "Hit the hay", "Kick the bucket", "Let the cat out of the bag", "Piece of cake", "Spill the beans", "Under the weather", "When pigs fly", "You can't judge a book by its cover", "A blessing in disguise", "A dime a dozen", "Actions speak louder than words", "Add insult to injury", "Barking up the wrong tree", "Beating around the bush", "Better late than never", "Bite off more than you can chew", "Burning the candle at both ends", "Caught between a rock and a hard place", "Cost an arm and a leg", "Cut to the chase", "Don't count your chickens before they hatch", "Don't put all your eggs in one basket", "Every cloud has a silver lining", "Get a taste of your own medicine", "Give someone the cold shoulder", "Go back to the drawing board", "Hit the nail on the head", "In the heat of the moment", "It takes two to tango", "Jump on the bandwagon", "Kill two birds with one stone", "Let sleeping dogs lie", "Miss the boat", "No pain, no gain", "On cloud nine", "Once in a blue moon", "Out of the frying pan and into the fire", "Piece of cake", "Put all your eggs in one basket", "Read between the lines", "See eye to eye", "Sit on the fence", "Speak of the devil", "Steal someone's thunder", "Take it with a grain of salt", "The ball is in your court", "The best of both worlds", "The early bird catches the worm", "The elephant in the room", "Throw in the towel", "Turn a blind eye"]
     }
     spin_colors = [RED, GREEN, BLUE, YELLOW, RED, GREEN, BLUE, YELLOW] # Color list for wheel
     text_color = WHITE
@@ -724,7 +755,21 @@ def main():
             
             # Display category
             
-            display_message(screen,"Category: " + category, FONT_MEDIUM, text_color, (WORD_DISPLAY_X + 150,  SCREEN_HEIGHT // 4))
+            # display_message(screen,"Category: " + category, FONT_MEDIUM, text_color, (WORD_DISPLAY_X + 150,  SCREEN_HEIGHT // 4))
+
+            # --- Info section (top right) ---
+            info_x = WORD_DISPLAY_X
+            info_y = 150
+            info_w = 465
+            info_h = 200
+            draw_info_section(
+                screen, info_x, info_y, info_w, info_h,
+                player_name=current_player['name'],
+                player_score=current_player['score'],
+                spin_value=spin_value if 'spin_value' in locals() else None,
+                font=FONT_MEDIUM,
+                category=category,
+            )
 
             # --- Game Options ---
              
@@ -816,6 +861,7 @@ def main():
     time.sleep(5)
 
     pygame.quit()
+    
 if __name__ == "__main__":
     pygame.mixer.music.play(-1)  # Loop the music
     main()
