@@ -174,7 +174,7 @@ def get_text_input(surface, prompt, font, text_color, bg_color, input_rect_cente
         surface.fill(bg_color)
         if overlap and len(puzzle) > 0:
             display_board(surface, puzzle, revealed, font, text_color, 40, 50, WORD_DISPLAY_X, SCREEN_WIDTH)
-            display_message(surface, f'WHEEL OF FORTUNE', FONT_XXLARGE, text_color, (SCREEN_WIDTH // 2, 100))
+            display_message(surface, f'SPIN THAT WHEEL', FONT_XXLARGE, text_color, (SCREEN_WIDTH // 2, 100))
             # Info section (left)
             info_x = GAME_DISPLAY_X
             info_y = 135
@@ -654,7 +654,7 @@ def show_intro_screen(screen, spin_colors, text_color):
                 running = False
 
         screen.fill(DARK_PURPLE)
-        display_message(screen, "WHEEL OF FORTUNE", FONT_XXLARGE, text_color, (SCREEN_WIDTH // 2, 180))
+        display_message(screen, "SPIN THAT WHEEL", FONT_XXLARGE, text_color, (SCREEN_WIDTH // 2, 180))
         display_message(screen, "Click or Press Any Key to Start", FONT_LARGE, YELLOW, (SCREEN_WIDTH // 2, SCREEN_HEIGHT - 200))
         # Draw the spinning wheel prop in the center
         draw_wheel(screen, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 20), 250, angle, WHEEL_VALUES, spin_colors, text_color)
@@ -668,11 +668,11 @@ def main():
     """Main game function."""
     # --- Initialization ---
     screen = pygame.display.set_mode(SCREEN_SIZE)
-    pygame.display.set_caption("Wheel of Fortune")
+    pygame.display.set_caption("Spin That Wheel!")
 
 
     # --- Game Data ---
-    categories = ["Food & Drink", "Movies", "Places", "Music", "Science", "Literature", "Cartoons", "Wine", "US States", "US Presidents", "Poems", "Sports", "Video Games", "Famous People", "TV Shows", "Animals", "Fruits","Vegetables", "Countries", "Famous Landmarks", "Famous Sayings", "Before and After", "Things people say"]
+    categories = ["Food & Drink", "Movies", "Places", "Music", "Science", "Literature", "Cartoons", "Wine", "US States", "US Presidents", "Poems", "Sports", "Video Games", "Famous People", "TV Shows", "Animals", "Fruits","Vegetables", "Countries", "Famous Landmarks", "Famous Slogans", "Before and After", "Things people say"]
     puzzles = {
         "Food & Drink": ["Pizza", "Hamburger", "Sushi", "Chocolate Cake", "Coffee", "Spaghetti", "Ice Cream", "Tacos", "Salad", "Pasta", "Sandwich", "Cereal", "Donut", "Steak", "Fried Chicken", "Watermelon", "Cheeseburger", "Milkshake", "Pancakes", "French Fries"],
         "Movies": ["Star Wars", "The Matrix", "Pulp Fiction", "The Dark Knight", "Avatar", "Jurassic Park", "Frozen", "Inception", "Titanic", "The Godfather", "Harry Potter", "The Lion King", "The Avengers", "Finding Nemo", "Toy Story"],
@@ -709,16 +709,27 @@ def main():
     show_intro_screen(screen, spin_colors, text_color)
 
     # --- Player Setup ---
-    while num_players < 1 or num_players > 3:
+    while True:
         screen.fill(bg_color)
-        display_message(screen, "WHEEL OF FORTUNE", FONT_XXLARGE, text_color, (SCREEN_WIDTH // 2, 100))
+        display_message(screen, "SPIN THAT WHEEL", FONT_XXLARGE, text_color, (SCREEN_WIDTH // 2, 100))
         pygame.display.flip()
-        num_players = int(get_text_input(screen, "Enter number of players (1-3):", FONT_MEDIUM, text_color, bg_color, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2), overlap=True))
+        try:
+            num_players = int(get_text_input(screen, "Enter number of players (1-3):", FONT_MEDIUM, text_color, bg_color, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2), overlap=True))
+            if 1 <= num_players <= 3:
+                break
+            else:
+                display_message(screen, "Please enter a number between 1 and 3.", FONT_MEDIUM, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 60))
+                pygame.display.flip()
+                time.sleep(2)
+        except ValueError:
+            display_message(screen, "Invalid input. Please enter a number.", FONT_MEDIUM, RED, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 60))
+            pygame.display.flip()
+            time.sleep(2)
 
     players = []
     for i in range(num_players):
         screen.fill(bg_color)
-        display_message(screen, f"WHEEL OF FORTUNE", FONT_XLARGE, text_color, (SCREEN_WIDTH // 2, 100))
+        display_message(screen, f"SPIN THAT WHEEL", FONT_XLARGE, text_color, (SCREEN_WIDTH // 2, 100))
         pygame.display.flip()
         player_name = get_text_input(screen, f"Enter name for Player {i + 1}:", FONT_MEDIUM, text_color, bg_color, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2), overlap=True)
         players.append({'name': player_name, 'score': 0, 'total_score': 0})
@@ -857,10 +868,12 @@ def main():
     screen.fill(bg_color)
     display_message(screen, "Game Over!", FONT_XLARGE, text_color, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 3))
     display_message(screen, f"Overall Winner: {overall_winner['name']} with ${overall_winner['total_score']}!", FONT_XLARGE, YELLOW, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+    win_sound.play()  # Play win sound
     pygame.display.flip()
     time.sleep(5)
+    main()  # Restart the game
 
-    pygame.quit()
+    # pygame.quit()
     
 if __name__ == "__main__":
     pygame.mixer.music.play(-1)  # Loop the music
