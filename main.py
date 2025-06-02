@@ -119,7 +119,7 @@ def draw_button(surface, rect, text, font, text_color, highlight_color, mouse_po
     display_message(surface, text, font, text_color, rect.center)
     
     
-def draw_info_section(surface, x, y, w, h, player_name, player_score, spin_value=None, font=FONT_MEDIUM, category=None):
+def draw_info_section(surface, x, y, w, h, player_name, player_score, spin_value=None, font=FONT_MEDIUM, category=None, score_board=False):
     """Draws the info section with background and game info."""
     bg_color = (30, 30, 60)
     border_radius = 20
@@ -128,14 +128,15 @@ def draw_info_section(surface, x, y, w, h, player_name, player_score, spin_value
     info_y = y + 20
     if category is None:
         category = "No Category Selected"
-    display_message(surface,"Category: " + category, FONT_MEDIUM, WHITE, (x + 30,  info_y), center=False)
-    info_y +=45
-    display_message(surface, f"Player Turn: {player_name}", font, YELLOW, (x + 30, info_y), center=False)
-    info_y += 45
-    if spin_value is not None:
-        display_message(surface, f"Spin Value: {spin_value}", font, WHITE, (x + 30, info_y), center=False)
+    if score_board == False:
+        display_message(surface,"Category: " + category, FONT_MEDIUM, WHITE, (x + 30,  info_y), center=False)
+        info_y +=45
+        display_message(surface, f"Player Turn: {player_name}", font, YELLOW, (x + 30, info_y), center=False)
         info_y += 45
-    display_message(surface, f"Score: ${player_score}", font, GREEN, (x + 30, info_y), center=False)
+        if spin_value is not None:
+            display_message(surface, f"Spin Value: {spin_value}", font, WHITE, (x + 30, info_y), center=False)
+            info_y += 45
+        display_message(surface, f"Score: ${player_score}", font, GREEN, (x + 30, info_y), center=False)
 
 
 
@@ -411,8 +412,9 @@ def generate_puzzle(category, puzzles):
     return random.choice(puzzles[category]).upper()
 
 def create_revealed_array(puzzle):
-    """Creates a boolean array indicating which letters in the puzzle have been revealed."""
-    return [False for _ in puzzle]
+    """Creates a boolean array indicating which letters in the puzzle have been revealed.
+    Punctuation and spaces are revealed by default."""
+    return [not char.isalpha() for char in puzzle]
 
 def calculate_winnings(spin_value, num_revealed):
     """Calculates the winnings for a correct letter guess."""
@@ -504,7 +506,7 @@ def handle_spin_result(surface, player, spin_value, puzzle, revealed, font, text
                 font,
                 text_color,
                 DARK_PURPLE,
-                (GAME_DISPLAY_X + 100, SCREEN_HEIGHT // 2 + 200),
+                (GAME_DISPLAY_X + 150, SCREEN_HEIGHT // 2 + 200),
                 overlap=True,
                 puzzle=puzzle,
                 revealed=revealed,
@@ -560,7 +562,7 @@ def handle_buy_vowel(surface, player, puzzle, revealed, font, text_color, bg_col
                 font,
                 text_color,
                 bg_color,
-                (GAME_DISPLAY_X + 100, SCREEN_HEIGHT // 2 + 100),
+                (GAME_DISPLAY_X + 150, SCREEN_HEIGHT // 2 + 200),
                 overlap=True,
                 puzzle=puzzle,
                 revealed=revealed,
@@ -661,6 +663,52 @@ def show_intro_screen(screen, spin_colors, text_color):
         angle = (angle + 3) % 360  # Spin speed
         pygame.display.flip()
         clock.tick(60)  # 60 FPS
+        
+def show_scoreboard(surface, players, font, bg_color, text_color):
+    """Displays the scoreboard with all players' total scores, centered in an info section."""
+    running = True
+    # Info section dimensions
+    info_w = 500
+    info_h = 100 + 70 * len(players)
+    info_x = (SCREEN_WIDTH - info_w) // 2
+    info_y = (SCREEN_HEIGHT - info_h) // 2
+
+    while running:
+        surface.fill(bg_color)
+        # Draw the SCOREBOARD title above the info section
+        display_message(
+            surface, "SCOREBOARD", FONT_XLARGE, YELLOW,
+            (SCREEN_WIDTH // 2, info_y - 50), center=True
+        )
+        # Draw the info section background
+        draw_info_section(
+            surface, info_x, info_y, info_w, info_h,
+            player_name="",  # No player name in the box
+            player_score="",
+            spin_value=None,
+            font=FONT_XLARGE,
+            category=None,
+            score_board=True
+        )
+        # Draw player names and scores, centered in the info section
+        for idx, player in enumerate(players):
+            msg = f"{player['name']}: ${player['total_score']}"
+            y = info_y + 70 + idx * 60
+            display_message(surface, msg, font, YELLOW, (info_x + info_w // 2, y), center=True)
+
+        # Draw a "Back" button at the bottom of the info section
+        back_button = pygame.Rect(info_x + info_w // 2 - 90, info_y + info_h - 70, 180, 50)
+        draw_button(surface, back_button, "Back", font, text_color, HIGHLIGHT_COLOR, pygame.mouse.get_pos(), button_id="scoreboard_back")
+        pygame.display.flip()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if back_button.collidepoint(event.pos):
+                    button_select_sound.play()
+                    running = False
 
 
 
@@ -696,7 +744,10 @@ def main():
         "Famous Landmarks": ["Eiffel Tower", "Great Wall of China", "Statue of Liberty", "Taj Mahal", "Colosseum", "Pyramids of Giza", "Machu Picchu", "Sydney Opera House", "Big Ben", "Christ the Redeemer", "Stonehenge", "Acropolis of Athens", "Petra", "Angkor Wat", "Burj Khalifa"],
         "Famous Slogans": ["Just Do It", "Think Different", "I'm Lovin' It", "Have It Your Way", "The Ultimate Driving Machine", "Because You're Worth It", "Melts in Your Mouth, Not in Your Hands", "Taste the Rainbow", "The Happiest Place on Earth", "Finger Lickin' Good", "Expect More. Pay Less.", "Save Money. Live Better.", "Eat Fresh", "The Quicker Picker Upper", "Can You Hear Me Now?"],
         "Before and After": ["Bread and Butter", "Salt and Pepper", "Peanut Butter and Jelly", "Fish and Chips", "Macaroni and Cheese", "Bacon and Eggs", "Milk and Cookies", "Spaghetti and Meatballs", "Coffee and Donuts", "Wine and Cheese", "Tea and Biscuits", "Ham and Cheese", "Chicken and Waffles", "Pasta and Sauce", "Rice and Beans", "Chips and Salsa", "Burger and Fries", "Pizza and Beer", "Tacos and Guacamole", "Hot Dog and Mustard", "Ice Cream and Cake", "Popcorn and Movie", "Soup and Sandwich", "Salad and Dressing", "Steak and Potatoes", "Cereal and Milk", "Bagel and Cream Cheese", "Pancakes and Syrup"],
-        "Things people say": ["Break a leg", "Bite the bullet", "Burn the midnight oil", "Hit the hay", "Kick the bucket", "Let the cat out of the bag", "Piece of cake", "Spill the beans", "Under the weather", "When pigs fly", "You can't judge a book by its cover", "A blessing in disguise", "A dime a dozen", "Actions speak louder than words", "Add insult to injury", "Barking up the wrong tree", "Beating around the bush", "Better late than never", "Bite off more than you can chew", "Burning the candle at both ends", "Caught between a rock and a hard place", "Cost an arm and a leg", "Cut to the chase", "Don't count your chickens before they hatch", "Don't put all your eggs in one basket", "Every cloud has a silver lining", "Get a taste of your own medicine", "Give someone the cold shoulder", "Go back to the drawing board", "Hit the nail on the head", "In the heat of the moment", "It takes two to tango", "Jump on the bandwagon", "Kill two birds with one stone", "Let sleeping dogs lie", "Miss the boat", "No pain, no gain", "On cloud nine", "Once in a blue moon", "Out of the frying pan and into the fire", "Piece of cake", "Put all your eggs in one basket", "Read between the lines", "See eye to eye", "Sit on the fence", "Speak of the devil", "Steal someone's thunder", "Take it with a grain of salt", "The ball is in your court", "The best of both worlds", "The early bird catches the worm", "The elephant in the room", "Throw in the towel", "Turn a blind eye"]
+        "Things people say": ["Break a leg", "Bite the bullet", "Burn the midnight oil", "Hit the hay", "Kick the bucket", "Let the cat out of the bag", "Piece of cake", "Spill the beans", "Under the weather", "When pigs fly", "You can't judge a book by its cover", "A blessing in disguise", "A dime a dozen", "Actions speak louder than words", "Add insult to injury", "Barking up the wrong tree", "Beating around the bush", "Better late than never", "Bite off more than you can chew", "Burning the candle at both ends", "Caught between a rock and a hard place", "Cost an arm and a leg", "Cut to the chase", "Don't count your chickens before they hatch", "Don't put all your eggs in one basket", "Every cloud has a silver lining", "Get a taste of your own medicine", "Give someone the cold shoulder", "Go back to the drawing board", "Hit the nail on the head", "In the heat of the moment", "It takes two to tango", "Jump on the bandwagon", "Kill two birds with one stone", "Let sleeping dogs lie", "Miss the boat", "No pain, no gain", "On cloud nine", "Once in a blue moon", "Out of the frying pan and into the fire", "Piece of cake", "Put all your eggs in one basket", "Read between the lines", "See eye to eye", "Sit on the fence", "Speak of the devil", "Steal someone's thunder", "Take it with a grain of salt", "The ball is in your court", "The best of both worlds", "The early bird catches the worm", "The elephant in the room", "Throw in the towel", "Turn a blind eye"],
+        "Famous Quotes": ["To be or not to be, that is the question", "I think, therefore I am", "The only thing we have to fear is fear itself"," Ask not what your country can do for you, ask what you can do for your country", "In the beginning God created the heavens and the earth", "I have a dream", "The unexamined life is not worth living", "To infinity and beyond","That's one small step", "I have nothing to offer but blood, toil, tears and sweat", "The only thing we have to fear is fear itself", "Give me liberty or give me death", "The truth is out there", "Houston, we have a problem", "I am the walrus", "All you need is love", "The truth will set you free, but first it will make you miserable", "The only way to do great work is to love what you do", "Life is what happens when you're busy making other plans", "In three words I can sum up everything I've learned about life: it goes on", "The best way to predict the future is to create it", "You miss a hundred percent of the shots you don't take", "Success is not final, failure is not fatal. It is the courage to continue that counts", "The greatest glory in living lies not in never falling, but in rising every time we fall", "It does not matter how slowly you go as long as you do not stop", "The purpose of our lives is to be happy", "Get busy living or get busy dying", "You have within you right now, everything you need to deal with whatever the world can throw at you"],
+        "Historical Events": ["The Moon Landing", "The Fall of the Berlin Wall", "The American Revolution", "The French Revolution", "World War I", "World War II", "The Civil Rights Movement", "The Industrial Revolution", "The Great Depression", "The Cold War", "The Renaissance", "The Age of Enlightenment", "The Discovery of America", "The Invention of the Printing Press", "The Invention of the Internet", "The Assassination of Archduke Franz Ferdinand", "The Signing of the Declaration of Independence", "The Signing of the Treaty of Versailles", "The Cuban Missile Crisis", "The Space landing", "The September eleventh attacks", "The Invention of the Telephone", "The Invention of the Light Bulb", "The Invention of the Automobile", "The Invention of the Airplane", "The Invention of the Television", "The Invention of the Computer", "The Invention of the Radio", "The Invention of the Refrigerator", "The Invention of the Microwave Oven", "The Invention of the Washing Machine", "The Invention of the Vacuum Cleaner", "The Invention of the Dishwasher", "The Invention of the Electric Guitar", "The Invention of the Camera"],
+        "Historical Sports Moments": ["The Miracle on Ice", "The Rumble in the Jungle", "The Thrilla in Manila", "The Immaculate Reception", "The Catch", "The Shot", "The Drive", "The Hail Mary", "The Tuck Rule Game", "The Music City Miracle", "The Helmet Catch", "The Immaculate Extension", "The Flop", "The Fumble", "The Block", "The Shot Heard Around the World", "Chicago Cubs Win the World Series", "Boston Red Sox Break the Curse", "New England Patriots Comeback in Super Bowl LI", "Golden State Warriors Almost Perfect Season", "Michael Jordan's Flu Game", "Tiger Woods' US Open Win", "Usain Bolt's World Record one hundred meter Dash", "Serena Williams' Grand Slam Wins", "Roger Federer's Wimbledon Dominance", "Pele's World Cup Triumphs", "Muhammad Ali's Fight of the Century", "Mayweather vs Pacquiao", "The New York Yankees' Championships", "The Chicago Bulls' Six Championships", "The Boston Celtics' Seventh Championships"]
     }
     spin_colors = [RED, GREEN, BLUE, YELLOW, RED, GREEN, BLUE, YELLOW] # Color list for wheel
     text_color = WHITE
@@ -771,7 +822,7 @@ def main():
             # --- Info section (top right) ---
             info_x = WORD_DISPLAY_X
             info_y = 150
-            info_w = 465
+            info_w = 580
             info_h = 200
             draw_info_section(
                 screen, info_x, info_y, info_w, info_h,
@@ -805,6 +856,10 @@ def main():
             # --- New Game Button (top right) ---
             new_game_button = pygame.Rect(SCREEN_WIDTH - 220, 30, 180, 50)
             draw_button(screen, new_game_button, "New Game", FONT_MEDIUM, text_color, HIGHLIGHT_COLOR, mouse_pos, button_id="new_game")
+
+            # Scoreboard Button (top right, next to New Game)
+            scoreboard_button = pygame.Rect(SCREEN_WIDTH - 420, 30, 180, 50)
+            draw_button(screen, scoreboard_button, "Scoreboard", FONT_MEDIUM, text_color, HIGHLIGHT_COLOR, mouse_pos, button_id="scoreboard")
 
             pygame.display.flip()
 
@@ -842,6 +897,10 @@ def main():
                         button_select_sound.play()
                         main()  # Restart the game
                         return
+                    elif scoreboard_button.collidepoint(mouse_pos):
+                        button_select_sound.play()
+                        show_scoreboard(screen, players, FONT_LARGE, bg_color, text_color)
+                        pygame.display.flip()
 
             # --- Check for puzzle solved after every action ---
             if all(revealed):
